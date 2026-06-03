@@ -54,7 +54,13 @@ class NipoVpnService : Service() {
             logDir.mkdirs()
 
             val logFile = File(logDir, "nipovpn.log")
-            logFile.appendText("\n\n===== Starting NipoVPN: ${profile.name} =====\n")
+            
+            // Clear old logs on each start
+            logFile.writeText("")
+            
+            logFile.appendText(
+                "\n\n===== Starting NipoVPN: ${profile.name} =====\n"
+            )
 
             LogManager.append("===== Starting NipoVPN: ${profile.name} =====")
             LogManager.append("Config: ${configFile.absolutePath}")

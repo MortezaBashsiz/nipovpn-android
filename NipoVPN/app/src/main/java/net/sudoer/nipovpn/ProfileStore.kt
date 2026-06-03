@@ -43,16 +43,13 @@ fun loadProfiles(context: Context): List<NipoProfile> {
                 tunnelEnable = cfgObj.optBoolean("tunnelEnable", defaultCfg.tunnelEnable),
                 connectionReuse = cfgObj.optBoolean("connectionReuse", defaultCfg.connectionReuse),
                 tlsEnable = cfgObj.optBoolean("tlsEnable", defaultCfg.tlsEnable),
-                tlsVerifyPeer = cfgObj.optBoolean("tlsVerifyPeer", defaultCfg.tlsVerifyPeer),
                 logLevel = cfgObj.optString("logLevel", defaultCfg.logLevel),
-                threads = cfgObj.optString("threads", defaultCfg.threads),
                 listenIp = cfgObj.optString("listenIp", defaultCfg.listenIp),
                 listenPort = cfgObj.optString("listenPort", defaultCfg.listenPort),
                 serverIp = cfgObj.optString("serverIp", defaultCfg.serverIp),
                 serverPort = cfgObj.optString("serverPort", defaultCfg.serverPort),
-                httpVersion = cfgObj.optString("httpVersion", defaultCfg.httpVersion),
                 userAgent = cfgObj.optString("userAgent", defaultCfg.userAgent)
-            )
+            ).normalized()
 
             result.add(
                 NipoProfile(
@@ -75,7 +72,7 @@ fun saveProfiles(context: Context, profiles: List<NipoProfile>) {
     val array = JSONArray()
 
     profiles.forEach { profile ->
-        val cfg = profile.config
+        val cfg = profile.config.normalized()
 
         val cfgObj = JSONObject()
             .put("token", cfg.token)
@@ -87,14 +84,11 @@ fun saveProfiles(context: Context, profiles: List<NipoProfile>) {
             .put("tunnelEnable", cfg.tunnelEnable)
             .put("connectionReuse", cfg.connectionReuse)
             .put("tlsEnable", cfg.tlsEnable)
-            .put("tlsVerifyPeer", cfg.tlsVerifyPeer)
             .put("logLevel", cfg.logLevel)
-            .put("threads", cfg.threads)
             .put("listenIp", cfg.listenIp)
             .put("listenPort", cfg.listenPort)
             .put("serverIp", cfg.serverIp)
             .put("serverPort", cfg.serverPort)
-            .put("httpVersion", cfg.httpVersion)
             .put("userAgent", cfg.userAgent)
 
         val obj = JSONObject()

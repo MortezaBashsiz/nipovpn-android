@@ -16,16 +16,41 @@ data class NipoConfig(
     val tunnelEnable: Boolean = true,
     val connectionReuse: Boolean = false,
     val tlsEnable: Boolean = true,
-    val tlsVerifyPeer: Boolean = false,
     val logLevel: String = "DEBUG",
-    val threads: String = "8",
     val listenIp: String = "0.0.0.0",
     val listenPort: String = "8080",
     val serverIp: String = "46.225.50.122",
     val serverPort: String = "443",
-    val httpVersion: String = "1.1",
     val userAgent: String = "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:132.0) Gecko/20100101 Firefox/132.0"
 )
+
+fun NipoConfig.normalized(): NipoConfig {
+    val allowedMethods = listOf("GET", "POST", "PUT", "DELETE")
+    val methodsSet = methods.lines()
+        .map { it.trim().uppercase() }
+        .filter { allowedMethods.contains(it) }
+        .toSet()
+
+    val normalizedMethods = allowedMethods
+        .filter { methodsSet.contains(it) }
+        .ifEmpty { allowedMethods }
+        .joinToString("\n")
+
+    val normalizedLogLevel = when (logLevel.trim().uppercase()) {
+        "TRACE" -> "TRACE"
+        "DEBUG" -> "DEBUG"
+        else -> "INFO"
+    }
+
+    return copy(
+        methods = normalizedMethods,
+        logLevel = normalizedLogLevel
+    )
+}
+
+fun phoneCpuCoreCount(): Int {
+    return Runtime.getRuntime().availableProcessors().coerceAtLeast(1)
+}
 
 fun yamlList(text: String): String {
     return text.lines()
@@ -35,6 +60,9 @@ fun yamlList(text: String): String {
 }
 
 fun generateConfigFile(context: Context, cfg: NipoConfig): File {
+    val finalCfg = cfg.normalized()
+    val cpuThreads = phoneCpuCoreCount()
+
     val logDir = File(context.filesDir, "logs")
     logDir.mkdirs()
 
@@ -44,40 +72,40 @@ fun generateConfigFile(context: Context, cfg: NipoConfig): File {
     val yaml = """
 ---
 general:
-  token: "${cfg.token}"
+  token: "${finalCfg.token}"
   fakeUrls:
-${yamlList(cfg.fakeUrls)}
+${yamlList(finalCfg.fakeUrls)}
   methods:
-${yamlList(cfg.methods)}
+${yamlList(finalCfg.methods)}
   endPoints:
-${yamlList(cfg.endPoints)}
-  timeout: ${cfg.timeout}
-  pullTimeout: ${cfg.pullTimeout}
-  tunnelEnable: ${cfg.tunnelEnable}
-  connectionReuse: ${cfg.connectionReuse}
-  tlsEnable: ${cfg.tlsEnable}
-  tlsVerifyPeer: ${cfg.tlsVerifyPeer}
+${yamlList(finalCfg.endPoints)}
+  timeout: ${finalCfg.timeout}
+  pullTimeout: ${finalCfg.pullTimeout}
+  tunnelEnable: ${finalCfg.tunnelEnable}
+  connectionReuse: ${finalCfg.connectionReuse}
+  tlsEnable: ${finalCfg.tlsEnable}
+  tlsVerifyPeer: false
   tlsCertFile: ""
   tlsKeyFile: ""
   tlsCaFile: ""
 
 log:
-  logLevel: "${cfg.logLevel}"
+  logLevel: "${finalCfg.logLevel}"
   logFile: "${logFile.absolutePath}"
 
 server:
-  threads: 8
+  threads: ${cpuThreads}
   listenIp: "0.0.0.0"
   listenPort: 80
 
 agent:
-  threads: ${cfg.threads}
-  listenIp: "${cfg.listenIp}"
-  listenPort: ${cfg.listenPort}
-  serverIp: "${cfg.serverIp}"
-  serverPort: ${cfg.serverPort}
-  httpVersion: "${cfg.httpVersion}"
-  userAgent: "${cfg.userAgent}"
+  threads: ${cpuThreads}
+  listenIp: "${finalCfg.listenIp}"
+  listenPort: ${finalCfg.listenPort}
+  serverIp: "${finalCfg.serverIp}"
+  serverPort: ${finalCfg.serverPort}
+  httpVersion: "1.1"
+  userAgent: "${finalCfg.userAgent}"
 """.trimIndent()
 
     configFile.writeText(yaml)
@@ -85,7 +113,7 @@ agent:
 }
 
 fun exportNipoProfileToLink(profile: NipoProfile): String {
-    val cfg = profile.config
+    val cfg = profile.config.normalized()
 
     val cfgObj = JSONObject()
         .put("token", cfg.token)
@@ -97,14 +125,11 @@ fun exportNipoProfileToLink(profile: NipoProfile): String {
         .put("tunnelEnable", cfg.tunnelEnable)
         .put("connectionReuse", cfg.connectionReuse)
         .put("tlsEnable", cfg.tlsEnable)
-        .put("tlsVerifyPeer", cfg.tlsVerifyPeer)
         .put("logLevel", cfg.logLevel)
-        .put("threads", cfg.threads)
         .put("listenIp", cfg.listenIp)
         .put("listenPort", cfg.listenPort)
         .put("serverIp", cfg.serverIp)
         .put("serverPort", cfg.serverPort)
-        .put("httpVersion", cfg.httpVersion)
         .put("userAgent", cfg.userAgent)
 
     val obj = JSONObject()
@@ -146,16 +171,13 @@ fun importNipoProfileFromLink(text: String): NipoProfile {
         tunnelEnable = cfgObj.optBoolean("tunnelEnable", defaultCfg.tunnelEnable),
         connectionReuse = cfgObj.optBoolean("connectionReuse", defaultCfg.connectionReuse),
         tlsEnable = cfgObj.optBoolean("tlsEnable", defaultCfg.tlsEnable),
-        tlsVerifyPeer = cfgObj.optBoolean("tlsVerifyPeer", defaultCfg.tlsVerifyPeer),
         logLevel = cfgObj.optString("logLevel", defaultCfg.logLevel),
-        threads = cfgObj.optString("threads", defaultCfg.threads),
         listenIp = cfgObj.optString("listenIp", defaultCfg.listenIp),
         listenPort = cfgObj.optString("listenPort", defaultCfg.listenPort),
         serverIp = cfgObj.optString("serverIp", defaultCfg.serverIp),
         serverPort = cfgObj.optString("serverPort", defaultCfg.serverPort),
-        httpVersion = cfgObj.optString("httpVersion", defaultCfg.httpVersion),
         userAgent = cfgObj.optString("userAgent", defaultCfg.userAgent)
-    )
+    ).normalized()
 
     return NipoProfile(
         id = UUID.randomUUID().toString(),
