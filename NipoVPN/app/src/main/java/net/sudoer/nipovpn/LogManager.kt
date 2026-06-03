@@ -13,9 +13,11 @@ object LogManager {
     @Synchronized
     fun append(line: String) {
         lines.addLast(line)
+
         while (lines.size > MAX_LINES) {
             lines.removeFirst()
         }
+
         _logs.value = lines.joinToString("\n")
     }
 

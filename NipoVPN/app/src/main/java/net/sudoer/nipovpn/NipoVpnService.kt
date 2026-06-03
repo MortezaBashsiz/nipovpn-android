@@ -11,9 +11,7 @@ import androidx.core.app.NotificationCompat
 import java.io.File
 
 class NipoVpnService : Service() {
-
     private var nipoProcess: Process? = null
-
     private var logTailThread: Thread? = null
 
     @Volatile
@@ -65,7 +63,6 @@ class NipoVpnService : Service() {
             startTailLogFile(logFile)
 
             val binaryFile = findNipoBinary()
-
             LogManager.append("Binary: ${binaryFile.absolutePath}")
 
             nipoProcess = ProcessBuilder(
@@ -92,7 +89,6 @@ class NipoVpnService : Service() {
                     logFile.appendText("$msg\n")
                 }
             }.start()
-
         } catch (e: Exception) {
             val msg = "Failed to start NipoVPN: ${e.message}"
             Log.e("NipoVPN", msg, e)
@@ -115,8 +111,8 @@ class NipoVpnService : Service() {
 
             val msg = "===== Stopped NipoVPN ====="
             File(filesDir, "logs/nipovpn.log").appendText("$msg\n")
-            LogManager.append(msg)
 
+            LogManager.append(msg)
             Log.i("NipoVPN", "Process stopped")
         } catch (e: Exception) {
             val msg = "Failed to stop process: ${e.message}"
@@ -146,7 +142,6 @@ class NipoVpnService : Service() {
                         if (currentSize > lastSize) {
                             logFile.inputStream().use { input ->
                                 input.skip(lastSize)
-
                                 input.bufferedReader().forEachLine { line ->
                                     if (line.isNotBlank()) {
                                         LogManager.append(line)
@@ -163,6 +158,7 @@ class NipoVpnService : Service() {
                     break
                 } catch (e: Exception) {
                     LogManager.append("Log tail error: ${e.message}")
+
                     try {
                         Thread.sleep(1000)
                     } catch (_: InterruptedException) {
@@ -183,6 +179,7 @@ class NipoVpnService : Service() {
         }
 
         val parent = File(applicationInfo.nativeLibraryDir).parentFile
+
         parent?.walkTopDown()?.forEach { file ->
             if (file.name == "libnipovpn_exec.so") {
                 return file
@@ -190,7 +187,8 @@ class NipoVpnService : Service() {
         }
 
         throw IllegalStateException(
-            "libnipovpn_exec.so not found. nativeLibraryDir=${applicationInfo.nativeLibraryDir}"
+            "libnipovpn_exec.so not found.\n" +
+                "nativeLibraryDir=${applicationInfo.nativeLibraryDir}"
         )
     }
 

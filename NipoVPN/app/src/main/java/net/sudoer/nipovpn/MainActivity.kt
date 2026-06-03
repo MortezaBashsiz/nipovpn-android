@@ -2,26 +2,49 @@ package net.sudoer.nipovpn
 
 import android.content.Context
 import android.content.Intent
+import android.net.Uri
 import android.os.Bundle
-import android.util.Base64
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import net.sudoer.nipovpn.ui.theme.NipoVPNTheme
-import org.json.JSONObject
-import java.io.File
 import java.util.UUID
 
 class MainActivity : ComponentActivity() {
@@ -29,14 +52,17 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
 
+        val importUri = intent?.data
+
         setContent {
             NipoVPNTheme {
                 Surface(
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background
                 ) {
-                    NipoVpnScreen(
+                    NipoVpnApp(
                         context = this,
+                        importUri = importUri,
                         onStart = {
                             ContextCompat.startForegroundService(
                                 this,
@@ -53,37 +79,19 @@ class MainActivity : ComponentActivity() {
     }
 }
 
-data class NipoConfig(
-    var token: String = "af445adb-2434-4975-9445-2c1b2231",
-    var fakeUrls: String = "nipo.ciron.net\nwww.google.com\nsudoer.net\nsudoer.ir",
-    var methods: String = "GET\nPOST\nPUT\nDELETE",
-    var endPoints: String = "api\nlogin\nuser\nupdate",
-    var timeout: String = "10",
-    var pullTimeout: String = "50",
-    var tunnelEnable: Boolean = true,
-    var connectionReuse: Boolean = false,
-    var tlsEnable: Boolean = true,
-    var tlsVerifyPeer: Boolean = false,
-    var logLevel: String = "DEBUG",
-    var threads: String = "8",
-    var listenIp: String = "0.0.0.0",
-    var listenPort: String = "8080",
-    var serverIp: String = "46.225.50.122",
-    var serverPort: String = "443",
-    var httpVersion: String = "1.1",
-    var userAgent: String = "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:132.0) Gecko/20100101 Firefox/132.0"
-)
-
 @Composable
-fun NipoVpnScreen(
+fun NipoVpnApp(
     context: Context,
+    importUri: Uri?,
     onStart: () -> Unit,
     onStop: () -> Unit
 ) {
-    var profiles by remember { mutableStateOf(loadProfiles(context)) }
+    var profiles by remember {
+        mutableStateOf<List<NipoProfile>>(loadProfiles(context))
+    }
 
     if (profiles.isEmpty()) {
-        profiles = mutableListOf(
+        profiles = listOf(
             NipoProfile(
                 name = "Default",
                 enabled = true,
@@ -93,80 +101,94 @@ fun NipoVpnScreen(
         saveProfiles(context, profiles)
     }
 
-    var selectedProfileId by remember {
-        mutableStateOf(
-            profiles.firstOrNull { it.enabled }?.id ?: profiles.first().id
-        )
-    }
-
+    var openedProfileId by remember { mutableStateOf<String?>(null) }
     var importDialog by remember { mutableStateOf(false) }
     var importText by remember { mutableStateOf("") }
 
-    val selectedProfile = profiles.first { it.id == selectedProfileId }
-    var cfg by remember(selectedProfileId) {
-        mutableStateOf(selectedProfile.config)
-    }
-
-    val logs by LogManager.logs.collectAsState()
-    val logScroll = rememberScrollState()
-
-    LaunchedEffect(logs) {
-        logScroll.animateScrollTo(logScroll.maxValue)
-    }
-
-    fun persistSelectedConfig() {
-        profiles = profiles.map {
-            if (it.id == selectedProfileId) it.copy(config = cfg) else it
-        }.toMutableList()
-
-        saveProfiles(context, profiles)
+    LaunchedEffect(importUri) {
+        importUri?.toString()?.let { link ->
+            try {
+                val profile = importNipoProfileFromLink(link)
+                profiles = profiles + profile
+                saveProfiles(context, profiles)
+                openedProfileId = profile.id
+                LogManager.append("Imported profile: ${profile.name}")
+            } catch (e: Exception) {
+                LogManager.append("Import failed: ${e.message}")
+            }
+        }
     }
 
     if (importDialog) {
-        AlertDialog(
-            onDismissRequest = { importDialog = false },
-            title = { Text("Import NipoVPN Profile") },
-            text = {
-                OutlinedTextField(
-                    value = importText,
-                    onValueChange = { importText = it },
-                    label = { Text("nipovpn://...") },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(180.dp)
-                )
-            },
-            confirmButton = {
-                Button(
-                    onClick = {
-                        try {
-                            val profile = importProfile(importText)
-
-                            profiles = (profiles + profile).toMutableList()
-                            saveProfiles(context, profiles)
-
-                            selectedProfileId = profile.id
-                            cfg = profile.config
-
-                            LogManager.append("Imported profile: ${profile.name}")
-                            importDialog = false
-                            importText = ""
-                        } catch (e: Exception) {
-                            LogManager.append("Import failed: ${e.message}")
-                        }
-                    }
-                ) {
-                    Text("Import")
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { importDialog = false }) {
-                    Text("Cancel")
+        ImportProfileDialog(
+            importText = importText,
+            onImportTextChange = { importText = it },
+            onDismiss = { importDialog = false },
+            onImport = {
+                try {
+                    val profile = importNipoProfileFromLink(importText)
+                    profiles = profiles + profile
+                    saveProfiles(context, profiles)
+                    openedProfileId = profile.id
+                    LogManager.append("Imported profile: ${profile.name}")
+                    importDialog = false
+                    importText = ""
+                } catch (e: Exception) {
+                    LogManager.append("Import failed: ${e.message}")
                 }
             }
         )
     }
 
+    val openedProfile = openedProfileId?.let { id ->
+        profiles.firstOrNull { profile -> profile.id == id }
+    }
+
+    if (openedProfile == null) {
+        ProfileListPage(
+            profiles = profiles,
+            onOpenProfile = { profile -> openedProfileId = profile.id },
+            onAddProfile = {
+                val newProfile = NipoProfile(
+                    id = UUID.randomUUID().toString(),
+                    name = "Profile ${profiles.size + 1}",
+                    enabled = false,
+                    config = NipoConfig()
+                )
+
+                profiles = profiles + newProfile
+                saveProfiles(context, profiles)
+                openedProfileId = newProfile.id
+            },
+            onImportProfile = { importDialog = true }
+        )
+    } else {
+        ProfileDetailPage(
+            context = context,
+            profile = openedProfile,
+            profiles = profiles,
+            onBack = { openedProfileId = null },
+            onProfilesChanged = { updatedProfiles ->
+                profiles = updatedProfiles
+                saveProfiles(context, profiles)
+
+                if (profiles.none { profile -> profile.id == openedProfile.id }) {
+                    openedProfileId = null
+                }
+            },
+            onStart = onStart,
+            onStop = onStop
+        )
+    }
+}
+
+@Composable
+fun ProfileListPage(
+    profiles: List<NipoProfile>,
+    onOpenProfile: (NipoProfile) -> Unit,
+    onAddProfile: () -> Unit,
+    onImportProfile: () -> Unit
+) {
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -177,27 +199,138 @@ fun NipoVpnScreen(
 
         Spacer(Modifier.height(16.dp))
 
-        SectionCard("Control") {
-            Text("Active Profile: ${profiles.firstOrNull { it.enabled }?.name ?: "None"}")
+        SectionCard("Profiles") {
+            profiles.forEach { profile ->
+                ProfileListItem(
+                    profile = profile,
+                    onClick = { onOpenProfile(profile) }
+                )
+            }
 
             Spacer(Modifier.height(12.dp))
 
             Button(
                 modifier = Modifier.fillMaxWidth(),
-                onClick = {
-                    persistSelectedConfig()
-
-                    profiles = profiles.map {
-                        it.copy(enabled = it.id == selectedProfileId)
-                    }.toMutableList()
-
-                    saveProfiles(context, profiles)
-                    generateConfigFile(context, cfg)
-
-                    onStart()
-                }
+                onClick = onAddProfile
             ) {
-                Text("▶ Save Profile and Start")
+                Text("+ Add Profile")
+            }
+
+            Spacer(Modifier.height(8.dp))
+
+            OutlinedButton(
+                modifier = Modifier.fillMaxWidth(),
+                onClick = onImportProfile
+            ) {
+                Text("Import nipovpn://")
+            }
+        }
+    }
+}
+
+@Composable
+fun ProfileDetailPage(
+    context: Context,
+    profile: NipoProfile,
+    profiles: List<NipoProfile>,
+    onBack: () -> Unit,
+    onProfilesChanged: (List<NipoProfile>) -> Unit,
+    onStart: () -> Unit,
+    onStop: () -> Unit
+) {
+    var name by remember(profile.id) { mutableStateOf(profile.name) }
+    var cfg by remember(profile.id) { mutableStateOf(profile.config) }
+
+    val logs by LogManager.logs.collectAsState()
+    val logScroll = rememberScrollState()
+
+    LaunchedEffect(logs) {
+        logScroll.animateScrollTo(logScroll.maxValue)
+    }
+
+    fun saveProfile() {
+        val updatedProfiles = profiles.map { item ->
+            if (item.id == profile.id) {
+                item.copy(name = name, config = cfg)
+            } else {
+                item
+            }
+        }
+
+        onProfilesChanged(updatedProfiles)
+        LogManager.append("Saved profile: $name")
+    }
+
+    fun startThisProfile() {
+        val updatedProfiles = profiles.map { item ->
+            if (item.id == profile.id) {
+                item.copy(name = name, enabled = true, config = cfg)
+            } else {
+                item.copy(enabled = false)
+            }
+        }
+
+        onProfilesChanged(updatedProfiles)
+        generateConfigFile(context, cfg)
+        onStart()
+    }
+
+    fun deleteThisProfile() {
+        if (profiles.size <= 1) {
+            LogManager.append("You need at least one profile")
+            return
+        }
+
+        val updatedProfiles = profiles
+            .filter { item -> item.id != profile.id }
+            .toMutableList()
+
+        if (updatedProfiles.none { item -> item.enabled }) {
+            updatedProfiles[0] = updatedProfiles[0].copy(enabled = true)
+        }
+
+        onProfilesChanged(updatedProfiles)
+    }
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .padding(16.dp)
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            OutlinedButton(onClick = onBack) {
+                Text("← Back")
+            }
+
+            Button(
+                modifier = Modifier.weight(1f),
+                onClick = { saveProfile() }
+            ) {
+                Text("Save")
+            }
+        }
+
+        Spacer(Modifier.height(16.dp))
+
+        SectionCard("Profile") {
+            ConfigTextField("Profile Name", name) { value -> name = value }
+
+            Text(
+                if (profile.enabled) "Status: Active" else "Status: Disabled",
+                style = MaterialTheme.typography.bodyMedium
+            )
+
+            Spacer(Modifier.height(12.dp))
+
+            Button(
+                modifier = Modifier.fillMaxWidth(),
+                onClick = { startThisProfile() }
+            ) {
+                Text("▶ Save and Start")
             }
 
             Spacer(Modifier.height(8.dp))
@@ -211,158 +344,77 @@ fun NipoVpnScreen(
 
             Spacer(Modifier.height(8.dp))
 
-            TextButton(
-                modifier = Modifier.fillMaxWidth(),
-                onClick = { LogManager.clear() }
-            ) {
-                Text("🗑 Clear Logs")
-            }
-        }
-
-        Spacer(Modifier.height(16.dp))
-
-        SectionCard("Profiles") {
-            profiles.forEach { profile ->
-                ProfileRow(
-                    profile = profile,
-                    selected = profile.id == selectedProfileId,
-                    onSelect = {
-                        persistSelectedConfig()
-                        selectedProfileId = profile.id
-                    },
-                    onEnable = {
-                        persistSelectedConfig()
-
-                        profiles = profiles.map {
-                            it.copy(enabled = it.id == profile.id)
-                        }.toMutableList()
-
-                        selectedProfileId = profile.id
-                        cfg = profile.config
-
-                        saveProfiles(context, profiles)
-                    },
-                    onDelete = {
-                        if (profiles.size > 1) {
-                            profiles = profiles
-                                .filter { it.id != profile.id }
-                                .toMutableList()
-
-                            if (selectedProfileId == profile.id) {
-                                selectedProfileId = profiles.first().id
-                                cfg = profiles.first().config
-                            }
-
-                            if (profiles.none { it.enabled }) {
-                                profiles = profiles.mapIndexed { index, item ->
-                                    item.copy(enabled = index == 0)
-                                }.toMutableList()
-                            }
-
-                            saveProfiles(context, profiles)
-                        }
-                    }
-                )
-            }
-
-            Spacer(Modifier.height(12.dp))
-
-            Button(
+            OutlinedButton(
                 modifier = Modifier.fillMaxWidth(),
                 onClick = {
-                    persistSelectedConfig()
-
-                    val newProfile = NipoProfile(
-                        id = UUID.randomUUID().toString(),
-                        name = "Profile ${profiles.size + 1}",
-                        enabled = false,
-                        config = NipoConfig()
+                    val link = exportNipoProfileToLink(
+                        NipoProfile(
+                            id = profile.id,
+                            name = name,
+                            enabled = profile.enabled,
+                            config = cfg
+                        )
                     )
 
-                    profiles = (profiles + newProfile).toMutableList()
-                    selectedProfileId = newProfile.id
-                    cfg = newProfile.config
-
-                    saveProfiles(context, profiles)
-                }
-            ) {
-                Text("+ Add Profile")
-            }
-
-            Spacer(Modifier.height(8.dp))
-
-            OutlinedButton(
-                modifier = Modifier.fillMaxWidth(),
-                onClick = {
-                    importDialog = true
-                }
-            ) {
-                Text("Import nipovpn://")
-            }
-
-            Spacer(Modifier.height(8.dp))
-
-            OutlinedButton(
-                modifier = Modifier.fillMaxWidth(),
-                onClick = {
-                    persistSelectedConfig()
-                    val link = exportProfile(selectedProfile.copy(config = cfg))
                     LogManager.append("Export:")
                     LogManager.append(link)
                 }
             ) {
-                Text("Export Selected Profile to Logs")
+                Text("Export nipovpn:// to Logs")
             }
-        }
 
-        Spacer(Modifier.height(16.dp))
+            Spacer(Modifier.height(8.dp))
 
-        SectionCard("Selected Profile") {
-            ConfigTextField("Profile Name", selectedProfile.name) { name ->
-                profiles = profiles.map {
-                    if (it.id == selectedProfileId) it.copy(name = name) else it
-                }.toMutableList()
-                saveProfiles(context, profiles)
+            TextButton(
+                modifier = Modifier.fillMaxWidth(),
+                onClick = { deleteThisProfile() }
+            ) {
+                Text("Delete Profile")
             }
         }
 
         Spacer(Modifier.height(16.dp))
 
         SectionCard("General") {
-            ConfigTextField("Token", cfg.token) { cfg = cfg.copy(token = it) }
-            ConfigTextField("Timeout", cfg.timeout) { cfg = cfg.copy(timeout = it) }
-            ConfigTextField("Pull Timeout", cfg.pullTimeout) { cfg = cfg.copy(pullTimeout = it) }
-
-            ConfigSwitch("Tunnel Enable", cfg.tunnelEnable) { cfg = cfg.copy(tunnelEnable = it) }
-            ConfigSwitch("Connection Reuse", cfg.connectionReuse) { cfg = cfg.copy(connectionReuse = it) }
-            ConfigSwitch("TLS Enable", cfg.tlsEnable) { cfg = cfg.copy(tlsEnable = it) }
-            ConfigSwitch("TLS Verify Peer", cfg.tlsVerifyPeer) { cfg = cfg.copy(tlsVerifyPeer = it) }
+            ConfigTextField("Token", cfg.token) { value -> cfg = cfg.copy(token = value) }
+            ConfigTextField("Timeout", cfg.timeout) { value -> cfg = cfg.copy(timeout = value) }
+            ConfigTextField("Pull Timeout", cfg.pullTimeout) { value -> cfg = cfg.copy(pullTimeout = value) }
+            ConfigSwitch("Tunnel Enable", cfg.tunnelEnable) { value -> cfg = cfg.copy(tunnelEnable = value) }
+            ConfigSwitch("Connection Reuse", cfg.connectionReuse) { value -> cfg = cfg.copy(connectionReuse = value) }
+            ConfigSwitch("TLS Enable", cfg.tlsEnable) { value -> cfg = cfg.copy(tlsEnable = value) }
+            ConfigSwitch("TLS Verify Peer", cfg.tlsVerifyPeer) { value -> cfg = cfg.copy(tlsVerifyPeer = value) }
         }
 
         Spacer(Modifier.height(16.dp))
 
         SectionCard("Agent") {
-            ConfigTextField("Threads", cfg.threads) { cfg = cfg.copy(threads = it) }
-            ConfigTextField("Listen IP", cfg.listenIp) { cfg = cfg.copy(listenIp = it) }
-            ConfigTextField("Listen Port", cfg.listenPort) { cfg = cfg.copy(listenPort = it) }
-            ConfigTextField("Server IP", cfg.serverIp) { cfg = cfg.copy(serverIp = it) }
-            ConfigTextField("Server Port", cfg.serverPort) { cfg = cfg.copy(serverPort = it) }
-            ConfigTextField("HTTP Version", cfg.httpVersion) { cfg = cfg.copy(httpVersion = it) }
-            MultiTextField("User Agent", cfg.userAgent) { cfg = cfg.copy(userAgent = it) }
+            ConfigTextField("Threads", cfg.threads) { value -> cfg = cfg.copy(threads = value) }
+            ConfigTextField("Listen IP", cfg.listenIp) { value -> cfg = cfg.copy(listenIp = value) }
+            ConfigTextField("Listen Port", cfg.listenPort) { value -> cfg = cfg.copy(listenPort = value) }
+            ConfigTextField("Server IP", cfg.serverIp) { value -> cfg = cfg.copy(serverIp = value) }
+            ConfigTextField("Server Port", cfg.serverPort) { value -> cfg = cfg.copy(serverPort = value) }
+            ConfigTextField("HTTP Version", cfg.httpVersion) { value -> cfg = cfg.copy(httpVersion = value) }
+            MultiTextField("User Agent", cfg.userAgent) { value -> cfg = cfg.copy(userAgent = value) }
         }
 
         Spacer(Modifier.height(16.dp))
 
         SectionCard("Rotation Lists") {
-            MultiTextField("Fake URLs", cfg.fakeUrls) { cfg = cfg.copy(fakeUrls = it) }
-            MultiTextField("Methods", cfg.methods) { cfg = cfg.copy(methods = it) }
-            MultiTextField("End Points", cfg.endPoints) { cfg = cfg.copy(endPoints = it) }
+            MultiTextField("Fake URLs", cfg.fakeUrls) { value -> cfg = cfg.copy(fakeUrls = value) }
+            MultiTextField("Methods", cfg.methods) { value -> cfg = cfg.copy(methods = value) }
+            MultiTextField("End Points", cfg.endPoints) { value -> cfg = cfg.copy(endPoints = value) }
         }
 
         Spacer(Modifier.height(16.dp))
 
         SectionCard("Logs") {
-            ConfigTextField("Log Level", cfg.logLevel) { cfg = cfg.copy(logLevel = it) }
+            ConfigTextField("Log Level", cfg.logLevel) { value -> cfg = cfg.copy(logLevel = value) }
+
+            OutlinedButton(onClick = { LogManager.clear() }) {
+                Text("Clear Logs")
+            }
+
+            Spacer(Modifier.height(8.dp))
 
             Box(
                 modifier = Modifier
@@ -388,42 +440,75 @@ fun NipoVpnScreen(
 }
 
 @Composable
-fun ProfileRow(
+fun ImportProfileDialog(
+    importText: String,
+    onImportTextChange: (String) -> Unit,
+    onDismiss: () -> Unit,
+    onImport: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Import NipoVPN Profile") },
+        text = {
+            OutlinedTextField(
+                value = importText,
+                onValueChange = onImportTextChange,
+                label = { Text("nipovpn://...") },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(180.dp)
+            )
+        },
+        confirmButton = {
+            Button(onClick = onImport) {
+                Text("Import")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancel")
+            }
+        }
+    )
+}
+
+@Composable
+fun ProfileListItem(
     profile: NipoProfile,
-    selected: Boolean,
-    onSelect: () -> Unit,
-    onEnable: () -> Unit,
-    onDelete: () -> Unit
+    onClick: () -> Unit
 ) {
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 4.dp)
-            .clickable { onSelect() },
+            .padding(vertical = 5.dp)
+            .clickable { onClick() },
         colors = CardDefaults.cardColors(
-            containerColor =
-                if (selected) MaterialTheme.colorScheme.primaryContainer
-                else MaterialTheme.colorScheme.surfaceVariant
-        )
+            containerColor = if (profile.enabled) {
+                MaterialTheme.colorScheme.primaryContainer
+            } else {
+                MaterialTheme.colorScheme.surfaceVariant
+            }
+        ),
+        shape = RoundedCornerShape(18.dp)
     ) {
-        Column(modifier = Modifier.padding(12.dp)) {
-            Text(profile.name, style = MaterialTheme.typography.titleMedium)
+        Row(
+            modifier = Modifier.padding(16.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
             Text(
-                if (profile.enabled) "Enabled" else "Disabled",
-                style = MaterialTheme.typography.bodySmall
+                text = if (profile.enabled) "🟢" else "⚪",
+                style = MaterialTheme.typography.titleLarge
             )
 
-            Spacer(Modifier.height(8.dp))
-
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Button(onClick = onEnable) {
-                    Text("Enable")
-                }
-
-                OutlinedButton(onClick = onDelete) {
-                    Text("Delete")
-                }
+            Column(modifier = Modifier.weight(1f)) {
+                Text(profile.name, style = MaterialTheme.typography.titleMedium)
+                Text(
+                    if (profile.enabled) "Active profile" else "Tap to configure",
+                    style = MaterialTheme.typography.bodySmall
+                )
             }
+
+            Text("›", style = MaterialTheme.typography.headlineSmall)
         }
     }
 }
@@ -441,11 +526,11 @@ fun AppHeader() {
             modifier = Modifier.padding(20.dp),
             horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            Text("🔐", style = MaterialTheme.typography.headlineMedium)
+            Text("🛡️", style = MaterialTheme.typography.headlineMedium)
 
             Column {
                 Text("NipoVPN", style = MaterialTheme.typography.headlineMedium)
-                Text("Android agent controller", style = MaterialTheme.typography.bodyMedium)
+                Text("Profiles", style = MaterialTheme.typography.bodyMedium)
             }
         }
     }
@@ -508,96 +593,4 @@ fun ConfigSwitch(label: String, value: Boolean, onChange: (Boolean) -> Unit) {
         Text(label)
         Switch(checked = value, onCheckedChange = onChange)
     }
-}
-
-fun yamlList(text: String): String {
-    return text.lines()
-        .map { it.trim() }
-        .filter { it.isNotEmpty() }
-        .joinToString("\n") { "    - $it" }
-}
-
-fun generateConfigFile(context: Context, cfg: NipoConfig): File {
-    val logDir = File(context.filesDir, "logs")
-    logDir.mkdirs()
-
-    val logFile = File(logDir, "nipovpn.log")
-    val configFile = File(context.filesDir, "config.yaml")
-
-    val yaml = """
----
-general:
-  token: "${cfg.token}"
-  fakeUrls:
-${yamlList(cfg.fakeUrls)}
-  methods:
-${yamlList(cfg.methods)}
-  endPoints:
-${yamlList(cfg.endPoints)}
-  timeout: ${cfg.timeout}
-  pullTimeout: ${cfg.pullTimeout}
-  tunnelEnable: ${cfg.tunnelEnable}
-  connectionReuse: ${cfg.connectionReuse}
-  tlsEnable: ${cfg.tlsEnable}
-  tlsVerifyPeer: ${cfg.tlsVerifyPeer}
-  tlsCertFile: ""
-  tlsKeyFile: ""
-  tlsCaFile: ""
-
-log:
-  logLevel: "${cfg.logLevel}"
-  logFile: "${logFile.absolutePath}"
-
-server:
-  threads: 8
-  listenIp: "0.0.0.0"
-  listenPort: 80
-
-agent:
-  threads: ${cfg.threads}
-  listenIp: "${cfg.listenIp}"
-  listenPort: ${cfg.listenPort}
-  serverIp: "${cfg.serverIp}"
-  serverPort: ${cfg.serverPort}
-  httpVersion: "${cfg.httpVersion}"
-  userAgent: "${cfg.userAgent}"
-""".trimIndent()
-
-    configFile.writeText(yaml)
-    return configFile
-}
-
-fun exportProfile(profile: NipoProfile): String {
-    val cfg = profile.config
-
-    val cfgObj = JSONObject()
-        .put("token", cfg.token)
-        .put("fakeUrls", cfg.fakeUrls)
-        .put("methods", cfg.methods)
-        .put("endPoints", cfg.endPoints)
-        .put("timeout", cfg.timeout)
-        .put("pullTimeout", cfg.pullTimeout)
-        .put("tunnelEnable", cfg.tunnelEnable)
-        .put("connectionReuse", cfg.connectionReuse)
-        .put("tlsEnable", cfg.tlsEnable)
-        .put("tlsVerifyPeer", cfg.tlsVerifyPeer)
-        .put("logLevel", cfg.logLevel)
-        .put("threads", cfg.threads)
-        .put("listenIp", cfg.listenIp)
-        .put("listenPort", cfg.listenPort)
-        .put("serverIp", cfg.serverIp)
-        .put("serverPort", cfg.serverPort)
-        .put("httpVersion", cfg.httpVersion)
-        .put("userAgent", cfg.userAgent)
-
-    val obj = JSONObject()
-        .put("name", profile.name)
-        .put("config", cfgObj)
-
-    val encoded = Base64.encodeToString(
-        obj.toString().toByteArray(),
-        Base64.NO_WRAP
-    )
-
-    return "nipovpn://$encoded"
 }
