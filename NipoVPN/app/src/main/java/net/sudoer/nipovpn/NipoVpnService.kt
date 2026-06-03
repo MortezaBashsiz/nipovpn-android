@@ -14,6 +14,11 @@ class NipoVpnService : Service() {
 
     private var nipoProcess: Process? = null
 
+    private var logTailThread: Thread? = null
+
+    @Volatile
+    private var tailRunning = false
+
     override fun onCreate() {
         super.onCreate()
         startForeground(1, createNotification())
@@ -33,27 +38,35 @@ class NipoVpnService : Service() {
 
     private fun startNipoVpn() {
         if (nipoProcess != null) {
-            Log.i("NipoVPN", "Already running")
+            LogManager.append("NipoVPN is already running")
             return
         }
 
         try {
-            val configFile = File(filesDir, "config.yaml")
+            val profile = loadActiveProfile(this)
+
+            if (profile == null) {
+                LogManager.append("No active profile selected")
+                return
+            }
+
+            val configFile = generateConfigFile(this, profile.config)
+
             val logDir = File(filesDir, "logs")
             logDir.mkdirs()
-            assets.open("config.yaml").use { input ->
-                configFile.outputStream().use { output ->
-                    input.copyTo(output)
-                }
-            }
+
+            val logFile = File(logDir, "nipovpn.log")
+            logFile.appendText("\n\n===== Starting NipoVPN: ${profile.name} =====\n")
+
+            LogManager.append("===== Starting NipoVPN: ${profile.name} =====")
+            LogManager.append("Config: ${configFile.absolutePath}")
+            LogManager.append("Log: ${logFile.absolutePath}")
+
+            startTailLogFile(logFile)
 
             val binaryFile = findNipoBinary()
 
-            Log.i("NipoVPN", "nativeLibraryDir=${applicationInfo.nativeLibraryDir}")
-            Log.i("NipoVPN", "Binary=${binaryFile.absolutePath}")
-            Log.i("NipoVPN", "Binary exists=${binaryFile.exists()}")
-            Log.i("NipoVPN", "Binary executable=${binaryFile.canExecute()}")
-            Log.i("NipoVPN", "Config=${configFile.absolutePath}")
+            LogManager.append("Binary: ${binaryFile.absolutePath}")
 
             nipoProcess = ProcessBuilder(
                 binaryFile.absolutePath,
@@ -63,37 +76,113 @@ class NipoVpnService : Service() {
                 .redirectErrorStream(true)
                 .start()
 
-            Log.i("NipoVPN", "Process started")
-
             Thread {
                 try {
                     nipoProcess?.inputStream
                         ?.bufferedReader()
-                        ?.forEachLine {
-                            Log.i("NipoVPN", it)
+                        ?.forEachLine { line ->
+                            Log.i("NipoVPN", line)
+                            LogManager.append(line)
+                            logFile.appendText("$line\n")
                         }
                 } catch (e: Exception) {
-                    Log.e("NipoVPN", "stdout reader failed", e)
+                    val msg = "stdout reader failed: ${e.message}"
+                    Log.e("NipoVPN", msg, e)
+                    LogManager.append(msg)
+                    logFile.appendText("$msg\n")
                 }
             }.start()
 
         } catch (e: Exception) {
-            Log.e("NipoVPN", "Failed to start NipoVPN", e)
+            val msg = "Failed to start NipoVPN: ${e.message}"
+            Log.e("NipoVPN", msg, e)
+            LogManager.append(msg)
+
+            val logFile = File(filesDir, "logs/nipovpn.log")
+            logFile.parentFile?.mkdirs()
+            logFile.appendText("$msg\n")
         }
     }
 
+    private fun stopNipoVpn() {
+        try {
+            tailRunning = false
+            logTailThread?.interrupt()
+            logTailThread = null
+
+            nipoProcess?.destroy()
+            nipoProcess = null
+
+            val msg = "===== Stopped NipoVPN ====="
+            File(filesDir, "logs/nipovpn.log").appendText("$msg\n")
+            LogManager.append(msg)
+
+            Log.i("NipoVPN", "Process stopped")
+        } catch (e: Exception) {
+            val msg = "Failed to stop process: ${e.message}"
+            Log.e("NipoVPN", msg, e)
+            LogManager.append(msg)
+        }
+    }
+
+    private fun startTailLogFile(logFile: File) {
+        tailRunning = false
+        logTailThread?.interrupt()
+
+        tailRunning = true
+
+        logTailThread = Thread {
+            var lastSize = 0L
+
+            while (tailRunning) {
+                try {
+                    if (logFile.exists()) {
+                        val currentSize = logFile.length()
+
+                        if (currentSize < lastSize) {
+                            lastSize = 0L
+                        }
+
+                        if (currentSize > lastSize) {
+                            logFile.inputStream().use { input ->
+                                input.skip(lastSize)
+
+                                input.bufferedReader().forEachLine { line ->
+                                    if (line.isNotBlank()) {
+                                        LogManager.append(line)
+                                    }
+                                }
+                            }
+
+                            lastSize = currentSize
+                        }
+                    }
+
+                    Thread.sleep(500)
+                } catch (_: InterruptedException) {
+                    break
+                } catch (e: Exception) {
+                    LogManager.append("Log tail error: ${e.message}")
+                    try {
+                        Thread.sleep(1000)
+                    } catch (_: InterruptedException) {
+                        break
+                    }
+                }
+            }
+        }
+
+        logTailThread?.start()
+    }
+
     private fun findNipoBinary(): File {
-        val direct = File(
-            applicationInfo.nativeLibraryDir,
-            "libnipovpn_exec.so"
-        )
+        val direct = File(applicationInfo.nativeLibraryDir, "libnipovpn_exec.so")
 
         if (direct.exists()) {
             return direct
         }
 
         val parent = File(applicationInfo.nativeLibraryDir).parentFile
-
         parent?.walkTopDown()?.forEach { file ->
             if (file.name == "libnipovpn_exec.so") {
                 return file
@@ -103,16 +192,6 @@ class NipoVpnService : Service() {
         throw IllegalStateException(
             "libnipovpn_exec.so not found. nativeLibraryDir=${applicationInfo.nativeLibraryDir}"
         )
-    }
-
-    private fun stopNipoVpn() {
-        try {
-            nipoProcess?.destroy()
-            nipoProcess = null
-            Log.i("NipoVPN", "Process stopped")
-        } catch (e: Exception) {
-            Log.e("NipoVPN", "Failed to stop process", e)
-        }
     }
 
     private fun createNotification(): Notification {
