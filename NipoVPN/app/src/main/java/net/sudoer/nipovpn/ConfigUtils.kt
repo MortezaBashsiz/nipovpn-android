@@ -8,6 +8,7 @@ import java.util.UUID
 
 data class NipoConfig(
     val token: String = "af445adb-2434-4975-9445-2c1b2231",
+    val protocol: String = "socks5",
     val fakeUrls: String = "nipo.ciron.net\nwww.google.com\nsudoer.net\nsudoer.ir",
     val methods: String = "GET\nPOST\nPUT\nDELETE",
     val endPoints: String = "api\nlogin\nuser\nupdate",
@@ -16,11 +17,16 @@ data class NipoConfig(
     val tunnelEnable: Boolean = true,
     val connectionReuse: Boolean = false,
     val tlsEnable: Boolean = true,
+    val tlsVerifyPeer: Boolean = false,
+    val tlsCertFile: String = "/etc/nipovpn/server.crt",
+    val tlsKeyFile: String = "/etc/nipovpn/server.key",
+    val tlsCaFile: String = "",
     val logLevel: String = "DEBUG",
     val listenIp: String = "0.0.0.0",
     val listenPort: String = "8080",
     val serverIp: String = "46.225.50.122",
     val serverPort: String = "443",
+    val httpVersion: String = "1.1",
     val userAgent: String = "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:132.0) Gecko/20100101 Firefox/132.0"
 )
 
@@ -42,9 +48,21 @@ fun NipoConfig.normalized(): NipoConfig {
         else -> "INFO"
     }
 
+    val normalizedProtocol = when (protocol.trim().lowercase()) {
+        "http" -> "http"
+        "socks5" -> "socks5"
+        else -> "socks5"
+    }
+
+    val normalizedTunnelEnable = if (connectionReuse) false else tunnelEnable
+    val normalizedConnectionReuse = if (normalizedTunnelEnable) false else connectionReuse
+
     return copy(
+        protocol = normalizedProtocol,
         methods = normalizedMethods,
-        logLevel = normalizedLogLevel
+        logLevel = normalizedLogLevel,
+        tunnelEnable = normalizedTunnelEnable,
+        connectionReuse = normalizedConnectionReuse
     )
 }
 
@@ -62,10 +80,8 @@ fun yamlList(text: String): String {
 fun generateConfigFile(context: Context, cfg: NipoConfig): File {
     val finalCfg = cfg.normalized()
     val cpuThreads = phoneCpuCoreCount()
-
     val logDir = File(context.filesDir, "logs")
     logDir.mkdirs()
-
     val logFile = File(logDir, "nipovpn.log")
     val configFile = File(context.filesDir, "config.yaml")
 
@@ -73,6 +89,7 @@ fun generateConfigFile(context: Context, cfg: NipoConfig): File {
 ---
 general:
   token: "${finalCfg.token}"
+  protocol: ${finalCfg.protocol}
   fakeUrls:
 ${yamlList(finalCfg.fakeUrls)}
   methods:
@@ -84,10 +101,10 @@ ${yamlList(finalCfg.endPoints)}
   tunnelEnable: ${finalCfg.tunnelEnable}
   connectionReuse: ${finalCfg.connectionReuse}
   tlsEnable: ${finalCfg.tlsEnable}
-  tlsVerifyPeer: false
-  tlsCertFile: ""
-  tlsKeyFile: ""
-  tlsCaFile: ""
+  tlsVerifyPeer: ${finalCfg.tlsVerifyPeer}
+  tlsCertFile: "${finalCfg.tlsCertFile}"
+  tlsKeyFile: "${finalCfg.tlsKeyFile}"
+  tlsCaFile: "${finalCfg.tlsCaFile}"
 
 log:
   logLevel: "${finalCfg.logLevel}"
@@ -104,7 +121,7 @@ agent:
   listenPort: ${finalCfg.listenPort}
   serverIp: "${finalCfg.serverIp}"
   serverPort: ${finalCfg.serverPort}
-  httpVersion: "1.1"
+  httpVersion: "${finalCfg.httpVersion}"
   userAgent: "${finalCfg.userAgent}"
 """.trimIndent()
 
@@ -114,9 +131,9 @@ agent:
 
 fun exportNipoProfileToLink(profile: NipoProfile): String {
     val cfg = profile.config.normalized()
-
     val cfgObj = JSONObject()
         .put("token", cfg.token)
+        .put("protocol", cfg.protocol)
         .put("fakeUrls", cfg.fakeUrls)
         .put("methods", cfg.methods)
         .put("endPoints", cfg.endPoints)
@@ -125,11 +142,16 @@ fun exportNipoProfileToLink(profile: NipoProfile): String {
         .put("tunnelEnable", cfg.tunnelEnable)
         .put("connectionReuse", cfg.connectionReuse)
         .put("tlsEnable", cfg.tlsEnable)
+        .put("tlsVerifyPeer", cfg.tlsVerifyPeer)
+        .put("tlsCertFile", cfg.tlsCertFile)
+        .put("tlsKeyFile", cfg.tlsKeyFile)
+        .put("tlsCaFile", cfg.tlsCaFile)
         .put("logLevel", cfg.logLevel)
         .put("listenIp", cfg.listenIp)
         .put("listenPort", cfg.listenPort)
         .put("serverIp", cfg.serverIp)
         .put("serverPort", cfg.serverPort)
+        .put("httpVersion", cfg.httpVersion)
         .put("userAgent", cfg.userAgent)
 
     val obj = JSONObject()
@@ -146,10 +168,7 @@ fun exportNipoProfileToLink(profile: NipoProfile): String {
 
 fun importNipoProfileFromLink(text: String): NipoProfile {
     val raw = text.trim()
-
-    require(raw.startsWith("nipovpn://")) {
-        "Config must start with nipovpn://"
-    }
+    require(raw.startsWith("nipovpn://")) { "Config must start with nipovpn://" }
 
     val encoded = raw.removePrefix("nipovpn://").trim()
     val decoded = String(
@@ -163,6 +182,7 @@ fun importNipoProfileFromLink(text: String): NipoProfile {
 
     val cfg = NipoConfig(
         token = cfgObj.optString("token", defaultCfg.token),
+        protocol = cfgObj.optString("protocol", defaultCfg.protocol),
         fakeUrls = cfgObj.optString("fakeUrls", defaultCfg.fakeUrls),
         methods = cfgObj.optString("methods", defaultCfg.methods),
         endPoints = cfgObj.optString("endPoints", defaultCfg.endPoints),
@@ -171,11 +191,16 @@ fun importNipoProfileFromLink(text: String): NipoProfile {
         tunnelEnable = cfgObj.optBoolean("tunnelEnable", defaultCfg.tunnelEnable),
         connectionReuse = cfgObj.optBoolean("connectionReuse", defaultCfg.connectionReuse),
         tlsEnable = cfgObj.optBoolean("tlsEnable", defaultCfg.tlsEnable),
+        tlsVerifyPeer = cfgObj.optBoolean("tlsVerifyPeer", defaultCfg.tlsVerifyPeer),
+        tlsCertFile = cfgObj.optString("tlsCertFile", defaultCfg.tlsCertFile),
+        tlsKeyFile = cfgObj.optString("tlsKeyFile", defaultCfg.tlsKeyFile),
+        tlsCaFile = cfgObj.optString("tlsCaFile", defaultCfg.tlsCaFile),
         logLevel = cfgObj.optString("logLevel", defaultCfg.logLevel),
         listenIp = cfgObj.optString("listenIp", defaultCfg.listenIp),
         listenPort = cfgObj.optString("listenPort", defaultCfg.listenPort),
         serverIp = cfgObj.optString("serverIp", defaultCfg.serverIp),
         serverPort = cfgObj.optString("serverPort", defaultCfg.serverPort),
+        httpVersion = cfgObj.optString("httpVersion", defaultCfg.httpVersion),
         userAgent = cfgObj.optString("userAgent", defaultCfg.userAgent)
     ).normalized()
 

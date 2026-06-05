@@ -19,7 +19,6 @@ private fun profilesFile(context: Context): File {
 
 fun loadProfiles(context: Context): List<NipoProfile> {
     val file = profilesFile(context)
-
     if (!file.exists()) {
         return emptyList()
     }
@@ -35,6 +34,7 @@ fun loadProfiles(context: Context): List<NipoProfile> {
 
             val cfg = NipoConfig(
                 token = cfgObj.optString("token", defaultCfg.token),
+                protocol = cfgObj.optString("protocol", defaultCfg.protocol),
                 fakeUrls = cfgObj.optString("fakeUrls", defaultCfg.fakeUrls),
                 methods = cfgObj.optString("methods", defaultCfg.methods),
                 endPoints = cfgObj.optString("endPoints", defaultCfg.endPoints),
@@ -43,11 +43,16 @@ fun loadProfiles(context: Context): List<NipoProfile> {
                 tunnelEnable = cfgObj.optBoolean("tunnelEnable", defaultCfg.tunnelEnable),
                 connectionReuse = cfgObj.optBoolean("connectionReuse", defaultCfg.connectionReuse),
                 tlsEnable = cfgObj.optBoolean("tlsEnable", defaultCfg.tlsEnable),
+                tlsVerifyPeer = cfgObj.optBoolean("tlsVerifyPeer", defaultCfg.tlsVerifyPeer),
+                tlsCertFile = cfgObj.optString("tlsCertFile", defaultCfg.tlsCertFile),
+                tlsKeyFile = cfgObj.optString("tlsKeyFile", defaultCfg.tlsKeyFile),
+                tlsCaFile = cfgObj.optString("tlsCaFile", defaultCfg.tlsCaFile),
                 logLevel = cfgObj.optString("logLevel", defaultCfg.logLevel),
                 listenIp = cfgObj.optString("listenIp", defaultCfg.listenIp),
                 listenPort = cfgObj.optString("listenPort", defaultCfg.listenPort),
                 serverIp = cfgObj.optString("serverIp", defaultCfg.serverIp),
                 serverPort = cfgObj.optString("serverPort", defaultCfg.serverPort),
+                httpVersion = cfgObj.optString("httpVersion", defaultCfg.httpVersion),
                 userAgent = cfgObj.optString("userAgent", defaultCfg.userAgent)
             ).normalized()
 
@@ -73,9 +78,9 @@ fun saveProfiles(context: Context, profiles: List<NipoProfile>) {
 
     profiles.forEach { profile ->
         val cfg = profile.config.normalized()
-
         val cfgObj = JSONObject()
             .put("token", cfg.token)
+            .put("protocol", cfg.protocol)
             .put("fakeUrls", cfg.fakeUrls)
             .put("methods", cfg.methods)
             .put("endPoints", cfg.endPoints)
@@ -84,11 +89,16 @@ fun saveProfiles(context: Context, profiles: List<NipoProfile>) {
             .put("tunnelEnable", cfg.tunnelEnable)
             .put("connectionReuse", cfg.connectionReuse)
             .put("tlsEnable", cfg.tlsEnable)
+            .put("tlsVerifyPeer", cfg.tlsVerifyPeer)
+            .put("tlsCertFile", cfg.tlsCertFile)
+            .put("tlsKeyFile", cfg.tlsKeyFile)
+            .put("tlsCaFile", cfg.tlsCaFile)
             .put("logLevel", cfg.logLevel)
             .put("listenIp", cfg.listenIp)
             .put("listenPort", cfg.listenPort)
             .put("serverIp", cfg.serverIp)
             .put("serverPort", cfg.serverPort)
+            .put("httpVersion", cfg.httpVersion)
             .put("userAgent", cfg.userAgent)
 
         val obj = JSONObject()
