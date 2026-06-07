@@ -3,8 +3,8 @@ package net.sudoer.nipovpn
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
-import android.app.Service
 import android.content.Intent
+import android.app.Service
 import android.os.IBinder
 import android.util.Log
 import androidx.core.app.NotificationCompat
@@ -23,16 +23,19 @@ class NipoVpnService : Service() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        startForeground(1, createNotification())
         startNipoVpn()
-        return START_STICKY
+        return START_NOT_STICKY
     }
 
     override fun onDestroy() {
         stopNipoVpn()
+        stopForeground(STOP_FOREGROUND_REMOVE)
         super.onDestroy()
     }
 
     override fun onBind(intent: Intent?): IBinder? = null
+
 
     private fun startNipoVpn() {
         if (nipoProcess != null) {
@@ -212,8 +215,8 @@ class NipoVpnService : Service() {
 
         return NotificationCompat.Builder(this, channelId)
             .setContentTitle("NipoVPN")
-            .setContentText("NipoVPN service is running")
-            .setSmallIcon(android.R.drawable.stat_sys_warning)
+            .setContentText("VPN is running")
+            .setSmallIcon(android.R.drawable.stat_sys_upload_done)
             .build()
     }
 }

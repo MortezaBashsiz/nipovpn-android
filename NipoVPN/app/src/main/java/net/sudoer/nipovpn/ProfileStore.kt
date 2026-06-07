@@ -115,5 +115,5 @@ fun saveProfiles(context: Context, profiles: List<NipoProfile>) {
 
 fun loadActiveProfile(context: Context): NipoProfile? {
     val profiles = loadProfiles(context)
-    return profiles.firstOrNull { profile -> profile.enabled } ?: profiles.firstOrNull()
+    return profiles.firstOrNull { profile -> profile.enabled }
 }
