@@ -6,6 +6,7 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
+import kotlinx.coroutines.delay
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -80,6 +81,7 @@ private val NipoGreen = Color(0xFF2E7D32)
 private val NipoRed = Color(0xFFC62828)
 
 class MainActivity : ComponentActivity() {
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
@@ -95,10 +97,7 @@ class MainActivity : ComponentActivity() {
                         context = this,
                         importUri = importUri,
                         onStart = {
-                            ContextCompat.startForegroundService(
-                                this,
-                                Intent(this, NipoVpnService::class.java)
-                            )
+                            startNipoVpnService()
                         },
                         onStop = {
                             stopService(Intent(this, NipoVpnService::class.java))
@@ -108,6 +107,15 @@ class MainActivity : ComponentActivity() {
             }
         }
     }
+
+
+    private fun startNipoVpnService() {
+        ContextCompat.startForegroundService(
+            this,
+            Intent(this, NipoVpnService::class.java)
+        )
+    }
+
 }
 
 @Composable
@@ -118,17 +126,6 @@ fun NipoVpnApp(
     onStop: () -> Unit
 ) {
     var profiles by remember { mutableStateOf<List<NipoProfile>>(loadProfiles(context)) }
-    if (profiles.isEmpty()) {
-        profiles = listOf(
-            NipoProfile(
-                name = "Default",
-                enabled = true,
-                config = NipoConfig()
-            )
-        )
-        saveProfiles(context, profiles)
-    }
-
     var openedProfileId by remember { mutableStateOf<String?>(null) }
     var importDialog by remember { mutableStateOf(false) }
     var importText by remember { mutableStateOf("") }
@@ -228,6 +225,16 @@ fun ProfileListPage(
 ) {
     val logs by LogManager.logs.collectAsState()
     val logScroll = rememberScrollState()
+    var pingResults by remember { mutableStateOf<Map<String, Long?>>(emptyMap()) }
+
+    LaunchedEffect(profiles) {
+        while (true) {
+            pingResults = profiles.associate { profile ->
+                profile.id to pingGoogleDelayMs(profile)
+            }
+            delay(10_000)
+        }
+    }
 
     LaunchedEffect(logs) {
         logScroll.animateScrollTo(logScroll.maxValue)
@@ -271,9 +278,16 @@ fun ProfileListPage(
                 )
             }
         ) {
+            if (profiles.isEmpty()) {
+                Text(
+                    text = "No profiles. Tap + or import to add one.",
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
             profiles.forEach { profile ->
                 ProfileListItem(
                     profile = profile,
+                    pingMs = pingResults[profile.id],
                     onClick = { onOpenProfile(profile) },
                     onStartStopClick = {
                         if (profile.enabled) {
@@ -399,15 +413,13 @@ fun ProfileDetailPage(
     }
 
     fun deleteThisProfile() {
-        if (profiles.size <= 1) {
-            LogManager.append("You need at least one profile")
-            return
-        }
-        val updatedProfiles = profiles.filter { item -> item.id != profile.id }.toMutableList()
-        if (updatedProfiles.none { item -> item.enabled }) {
-            updatedProfiles[0] = updatedProfiles[0].copy(enabled = true)
-        }
+        val wasRunning = profile.enabled
+        val updatedProfiles = profiles.filter { item -> item.id != profile.id }
         onProfilesChanged(updatedProfiles)
+        if (wasRunning) {
+            onStop()
+        }
+        LogManager.append("Deleted profile: $name")
     }
 
     fun copyExportToClipboard() {
@@ -637,6 +649,7 @@ fun ImportProfileDialog(
 @Composable
 fun ProfileListItem(
     profile: NipoProfile,
+    pingMs: Long?,
     onClick: () -> Unit,
     onStartStopClick: () -> Unit
 ) {
@@ -648,7 +661,7 @@ fun ProfileListItem(
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .height(76.dp)
+            .height(92.dp)
             .padding(vertical = 3.dp)
             .clickable { onClick() },
         colors = CardDefaults.cardColors(
@@ -672,6 +685,11 @@ fun ProfileListItem(
                     style = MaterialTheme.typography.bodySmall,
                     color = if (profile.enabled) activeText else inactiveSubText
                 )
+                Text(
+                    text = "google.com: ${pingMs?.let { "${it} ms" } ?: "-- ms"}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = if (profile.enabled) activeText else inactiveSubText
+                )
             }
             ProfilePlayPauseButton(running = profile.enabled, onClick = onStartStopClick)
             Text(
@@ -682,6 +700,8 @@ fun ProfileListItem(
         }
     }
 }
+
+
 
 @Composable
 fun SectionCard(title: String, content: @Composable ColumnScope.() -> Unit) {
