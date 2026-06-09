@@ -74,7 +74,7 @@ fun yamlList(text: String): String {
     return text.lines()
         .map { it.trim() }
         .filter { it.isNotEmpty() }
-        .joinToString("\n") { "    - $it" }
+        .joinToString("\n") { " - $it" }
 }
 
 fun generateConfigFile(context: Context, cfg: NipoConfig): File {
@@ -88,44 +88,42 @@ fun generateConfigFile(context: Context, cfg: NipoConfig): File {
     val yaml = """
 ---
 general:
-  token: "${finalCfg.token}"
-  protocol: ${finalCfg.protocol}
-  fakeUrls:
+ token: "${finalCfg.token}"
+ protocol: ${finalCfg.protocol}
+ fakeUrls:
 ${yamlList(finalCfg.fakeUrls)}
-  methods:
+ methods:
 ${yamlList(finalCfg.methods)}
-  endPoints:
+ endPoints:
 ${yamlList(finalCfg.endPoints)}
-  timeout: ${finalCfg.timeout}
-  pullTimeout: ${finalCfg.pullTimeout}
-  tunnelEnable: ${finalCfg.tunnelEnable}
-  connectionReuse: ${finalCfg.connectionReuse}
-  tlsEnable: ${finalCfg.tlsEnable}
-  tlsVerifyPeer: ${finalCfg.tlsVerifyPeer}
-  tlsCertFile: "${finalCfg.tlsCertFile}"
-  tlsKeyFile: "${finalCfg.tlsKeyFile}"
-  tlsCaFile: "${finalCfg.tlsCaFile}"
-
+ timeout: ${finalCfg.timeout}
+ pullTimeout: ${finalCfg.pullTimeout}
+ tunnelEnable: ${finalCfg.tunnelEnable}
+ connectionReuse: ${finalCfg.connectionReuse}
+ tlsEnable: ${finalCfg.tlsEnable}
+ tlsVerifyPeer: ${finalCfg.tlsVerifyPeer}
+ tlsCertFile: "${finalCfg.tlsCertFile}"
+ tlsKeyFile: "${finalCfg.tlsKeyFile}"
+ tlsCaFile: "${finalCfg.tlsCaFile}"
 log:
-  logLevel: "${finalCfg.logLevel}"
-  logFile: "${logFile.absolutePath}"
-
+ logLevel: "${finalCfg.logLevel}"
+ logFile: "${logFile.absolutePath}"
 server:
-  threads: ${cpuThreads}
-  listenIp: "0.0.0.0"
-  listenPort: 80
-
+ threads: ${cpuThreads}
+ listenIp: "0.0.0.0"
+ listenPort: 80
 agent:
-  threads: ${cpuThreads}
-  listenIp: "${finalCfg.listenIp}"
-  listenPort: ${finalCfg.listenPort}
-  serverIp: "${finalCfg.serverIp}"
-  serverPort: ${finalCfg.serverPort}
-  httpVersion: "${finalCfg.httpVersion}"
-  userAgent: "${finalCfg.userAgent}"
+ threads: ${cpuThreads}
+ listenIp: "${finalCfg.listenIp}"
+ listenPort: ${finalCfg.listenPort}
+ serverIp: "${finalCfg.serverIp}"
+ serverPort: ${finalCfg.serverPort}
+ httpVersion: "${finalCfg.httpVersion}"
+ userAgent: "${finalCfg.userAgent}"
 """.trimIndent()
 
     configFile.writeText(yaml)
+    LogManager.append("Generated config: protocol=${finalCfg.protocol.uppercase()} logLevel=${finalCfg.logLevel}")
     return configFile
 }
 
