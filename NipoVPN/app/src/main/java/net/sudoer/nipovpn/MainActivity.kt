@@ -75,18 +75,17 @@ import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import net.sudoer.nipovpn.ui.theme.NipoVPNTheme
 import java.util.UUID
+import java.io.File
 
 private val NipoDarkOrange = Color(0xFFE65100)
 private val NipoGreen = Color(0xFF2E7D32)
 private val NipoRed = Color(0xFFC62828)
 
 class MainActivity : ComponentActivity() {
-
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         val importUri = intent?.data
-
         setContent {
             NipoVPNTheme {
                 Surface(
@@ -96,18 +95,13 @@ class MainActivity : ComponentActivity() {
                     NipoVpnApp(
                         context = this,
                         importUri = importUri,
-                        onStart = {
-                            startNipoVpnService()
-                        },
-                        onStop = {
-                            stopService(Intent(this, NipoVpnService::class.java))
-                        }
+                        onStart = { startNipoVpnService() },
+                        onStop = { stopService(Intent(this, NipoVpnService::class.java)) }
                     )
                 }
             }
         }
     }
-
 
     private fun startNipoVpnService() {
         ContextCompat.startForegroundService(
@@ -115,7 +109,6 @@ class MainActivity : ComponentActivity() {
             Intent(this, NipoVpnService::class.java)
         )
     }
-
 }
 
 @Composable
@@ -223,16 +216,32 @@ fun ProfileListPage(
     onStart: () -> Unit,
     onStop: () -> Unit
 ) {
-    val logs by LogManager.logs.collectAsState()
+    val appLogs by LogManager.logs.collectAsState()
+    var nativeLogs by remember { mutableStateOf("") }
+    val logs = remember(appLogs, nativeLogs) {
+        listOf(appLogs, nativeLogs)
+            .map { it.trim() }
+            .filter { it.isNotBlank() }
+            .distinct()
+            .joinToString("\n")
+    }
     val logScroll = rememberScrollState()
-    var pingResults by remember { mutableStateOf<Map<String, Long?>>(emptyMap()) }
+    val activeProfile = profiles.firstOrNull { it.enabled }
+    var activePingMs by remember { mutableStateOf<Long?>(null) }
 
-    LaunchedEffect(profiles) {
-        while (true) {
-            pingResults = profiles.associate { profile ->
-                profile.id to pingGoogleDelayMs(profile)
-            }
+    LaunchedEffect(activeProfile?.id) {
+        activePingMs = null
+        while (activeProfile != null) {
+            activePingMs = pingGoogleDelayMs(activeProfile)
             delay(10_000)
+        }
+    }
+
+    LaunchedEffect(Unit) {
+        val logFile = File(context.filesDir, "logs/nipovpn.log")
+        while (true) {
+            nativeLogs = readTailLogFile(logFile)
+            delay(1_000)
         }
     }
 
@@ -280,20 +289,22 @@ fun ProfileListPage(
         ) {
             if (profiles.isEmpty()) {
                 Text(
-                    text = "No profiles. Tap + or import to add one.",
+                    text = "No profiles.\nTap + or import to add one.",
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
+
             profiles.forEach { profile ->
                 ProfileListItem(
                     profile = profile,
-                    pingMs = pingResults[profile.id],
+                    pingMs = if (profile.enabled) activePingMs else null,
                     onClick = { onOpenProfile(profile) },
                     onStartStopClick = {
                         if (profile.enabled) {
                             val updatedProfiles = profiles.map { item -> item.copy(enabled = false) }
                             onProfilesChanged(updatedProfiles)
                             onStop()
+                            activePingMs = null
                             LogManager.append("Stopped profile: ${profile.name}")
                         } else {
                             val updatedProfiles = profiles.map { item ->
@@ -318,7 +329,11 @@ fun ProfileListPage(
                     imageVector = Icons.Filled.CleaningServices,
                     contentColor = NipoDarkOrange,
                     borderColor = NipoDarkOrange,
-                    onClick = { LogManager.clear() }
+                    onClick = {
+                        LogManager.clear()
+                        clearNativeLogFile(context)
+                        nativeLogs = ""
+                    }
                 )
                 SmallMaterialIconButton(
                     imageVector = Icons.Filled.ContentCopy,
@@ -337,7 +352,6 @@ fun ProfileListPage(
             val currentLogLevel = profiles.firstOrNull { it.enabled }?.config?.logLevel
                 ?: profiles.firstOrNull()?.config?.logLevel
                 ?: "INFO"
-
             LogLevelSelector(
                 logLevel = currentLogLevel,
                 onLogLevelChange = { value ->
@@ -348,9 +362,7 @@ fun ProfileListPage(
                     LogManager.append("Log level changed to: $value")
                 }
             )
-
             Spacer(Modifier.height(8.dp))
-
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -369,6 +381,29 @@ fun ProfileListPage(
                 )
             }
         }
+    }
+}
+
+private fun readTailLogFile(logFile: File, maxBytes: Int = 24 * 1024): String {
+    return try {
+        if (!logFile.exists()) return ""
+        val length = logFile.length()
+        val skip = (length - maxBytes).coerceAtLeast(0)
+        logFile.inputStream().use { input ->
+            if (skip > 0) input.skip(skip)
+            input.readBytes().toString(Charsets.UTF_8)
+        }
+    } catch (_: Exception) {
+        ""
+    }
+}
+
+private fun clearNativeLogFile(context: Context) {
+    try {
+        val logFile = File(context.filesDir, "logs/nipovpn.log")
+        logFile.parentFile?.mkdirs()
+        logFile.writeText("")
+    } catch (_: Exception) {
     }
 }
 
@@ -463,9 +498,7 @@ fun ProfileDetailPage(
             ) {
                 ProfilePlayPauseButton(
                     running = profile.enabled,
-                    onClick = {
-                        if (profile.enabled) stopThisProfile() else startThisProfile()
-                    }
+                    onClick = { if (profile.enabled) stopThisProfile() else startThisProfile() }
                 )
                 SmallMaterialIconButton(
                     imageVector = Icons.Filled.ContentCopy,
@@ -685,11 +718,13 @@ fun ProfileListItem(
                     style = MaterialTheme.typography.bodySmall,
                     color = if (profile.enabled) activeText else inactiveSubText
                 )
-                Text(
-                    text = "google.com: ${pingMs?.let { "${it} ms" } ?: "-- ms"}",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = if (profile.enabled) activeText else inactiveSubText
-                )
+                if (profile.enabled) {
+                    Text(
+                        text = "google.com: ${pingMs?.let { "${it} ms" } ?: "-- ms"}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = activeText
+                    )
+                }
             }
             ProfilePlayPauseButton(running = profile.enabled, onClick = onStartStopClick)
             Text(
@@ -700,8 +735,6 @@ fun ProfileListItem(
         }
     }
 }
-
-
 
 @Composable
 fun SectionCard(title: String, content: @Composable ColumnScope.() -> Unit) {
