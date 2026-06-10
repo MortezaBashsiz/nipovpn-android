@@ -6,6 +6,8 @@ import android.app.NotificationManager
 import android.content.Intent
 import android.app.Service
 import android.os.IBinder
+import android.net.TrafficStats
+import android.os.Process as AndroidProcess
 import android.util.Log
 import androidx.core.app.NotificationCompat
 import java.io.File
@@ -13,9 +15,13 @@ import java.io.File
 class NipoVpnService : Service() {
     private var nipoProcess: Process? = null
     private var logTailThread: Thread? = null
+    private var statsThread: Thread? = null
 
     @Volatile
     private var tailRunning = false
+
+    @Volatile
+    private var statsRunning = false
 
     override fun onCreate() {
         super.onCreate()
@@ -98,7 +104,11 @@ class NipoVpnService : Service() {
                     logFile.appendText("$msg\n")
                 }
             }.start()
+
+            ConnectionStatus.started()
+            startStatsSampler()
         } catch (e: Exception) {
+            ConnectionStatus.stopped()
             val msg = "Failed to start NipoVPN: ${e.message}"
             Log.e("NipoVPN", msg, e)
             LogManager.append(msg)
@@ -115,6 +125,11 @@ class NipoVpnService : Service() {
             logTailThread?.interrupt()
             logTailThread = null
 
+            statsRunning = false
+            statsThread?.interrupt()
+            statsThread = null
+            ConnectionStatus.stopped()
+
             nipoProcess?.destroy()
             nipoProcess = null
 
@@ -128,6 +143,49 @@ class NipoVpnService : Service() {
             Log.e("NipoVPN", msg, e)
             LogManager.append(msg)
         }
+    }
+
+    private fun startStatsSampler() {
+        statsRunning = false
+        statsThread?.interrupt()
+
+        statsRunning = true
+
+        statsThread = Thread {
+            val uid = AndroidProcess.myUid()
+            var lastRx = TrafficStats.getUidRxBytes(uid)
+            var lastTx = TrafficStats.getUidTxBytes(uid)
+            var lastSampleMs = System.currentTimeMillis()
+
+            while (statsRunning) {
+                try {
+                    Thread.sleep(1000)
+
+                    val rx = TrafficStats.getUidRxBytes(uid)
+                    val tx = TrafficStats.getUidTxBytes(uid)
+                    val now = System.currentTimeMillis()
+                    val elapsedSec = (now - lastSampleMs).coerceAtLeast(1L) / 1000f
+
+                    // UNSUPPORTED (-1) or no prior baseline → report 0 (UI shows "—").
+                    val downKBs = if (rx < 0 || lastRx < 0) 0f
+                        else ((rx - lastRx).coerceAtLeast(0L) / 1024f) / elapsedSec
+                    val upKBs = if (tx < 0 || lastTx < 0) 0f
+                        else ((tx - lastTx).coerceAtLeast(0L) / 1024f) / elapsedSec
+
+                    ConnectionStatus.updateThroughput(downKBs, upKBs)
+
+                    lastRx = rx
+                    lastTx = tx
+                    lastSampleMs = now
+                } catch (_: InterruptedException) {
+                    break
+                } catch (e: Exception) {
+                    Log.e("NipoVPN", "stats sampler error: ${e.message}", e)
+                }
+            }
+        }
+
+        statsThread?.start()
     }
 
     private fun startTailLogFile(logFile: File) {
