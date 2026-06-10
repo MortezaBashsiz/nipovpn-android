@@ -16,6 +16,21 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
+    signingConfigs {
+        // Fixed, committed debug keystore so every build signs with the same
+        // key. Without this, builds are signed by the per-machine
+        // ~/.android/debug.keystore, whose certificate changes between
+        // machines — forcing an uninstall ("signatures do not match") on
+        // every install. Standard well-known debug credentials; the
+        // CN=Android Debug certificate carries no identifying info.
+        getByName("debug") {
+            storeFile = file("debug.keystore")
+            storePassword = "android"
+            keyAlias = "androiddebugkey"
+            keyPassword = "android"
+        }
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = false
