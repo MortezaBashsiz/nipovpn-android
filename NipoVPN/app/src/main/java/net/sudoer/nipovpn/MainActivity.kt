@@ -6,25 +6,19 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
-import kotlinx.coroutines.delay
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ColumnScope
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -32,31 +26,28 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CleaningServices
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.FileDownload
+import androidx.compose.material.icons.filled.Link
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
+import androidx.compose.material.icons.filled.Terminal
 import androidx.compose.material3.Icon
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Switch
-import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -68,35 +59,54 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.em
+import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
-import net.sudoer.nipovpn.ui.theme.NipoVPNTheme
+import kotlinx.coroutines.delay
+import net.sudoer.nipovpn.ui.nd.NdBackButton
+import net.sudoer.nipovpn.ui.nd.NdBottomNav
+import net.sudoer.nipovpn.ui.nd.NdBoxInput
+import net.sudoer.nipovpn.ui.nd.NdButton
+import net.sudoer.nipovpn.ui.nd.NdButtonVariant
+import net.sudoer.nipovpn.ui.nd.NdChip
+import net.sudoer.nipovpn.ui.nd.NdDivider
+import net.sudoer.nipovpn.ui.nd.NdDot
+import net.sudoer.nipovpn.ui.nd.NdDotGrid
+import net.sudoer.nipovpn.ui.nd.NdIconButton
+import net.sudoer.nipovpn.ui.nd.NdInput
+import net.sudoer.nipovpn.ui.nd.NdLabel
+import net.sudoer.nipovpn.ui.nd.NdLabelOn
+import net.sudoer.nipovpn.ui.nd.NdNavItem
+import net.sudoer.nipovpn.ui.nd.NdSegOption
+import net.sudoer.nipovpn.ui.nd.NdSegmented
+import net.sudoer.nipovpn.ui.nd.NdStatus
+import net.sudoer.nipovpn.ui.nd.NdToggleBox
+import net.sudoer.nipovpn.ui.nd.ndClick
+import net.sudoer.nipovpn.ui.theme.NdColors
+import net.sudoer.nipovpn.ui.theme.NdTheme
+import net.sudoer.nipovpn.ui.theme.NothingFonts
+import net.sudoer.nipovpn.ui.theme.NothingTheme
 import java.util.UUID
-import java.io.File
-
-private val NipoDarkOrange = Color(0xFFE65100)
-private val NipoGreen = Color(0xFF2E7D32)
-private val NipoRed = Color(0xFFC62828)
 
 class MainActivity : ComponentActivity() {
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         val importUri = intent?.data
+
         setContent {
-            NipoVPNTheme {
-                Surface(
-                    modifier = Modifier.fillMaxSize(),
-                    color = MaterialTheme.colorScheme.background
-                ) {
+            NothingTheme {
+                Surface(modifier = Modifier.fillMaxSize(), color = NdTheme.colors.black) {
                     NipoVpnApp(
                         context = this,
                         importUri = importUri,
                         onStart = { startNipoVpnService() },
-                        onStop = { stopService(Intent(this, NipoVpnService::class.java)) }
+                        onStop = { stopService(Intent(this, NipoVpnService::class.java)) },
                     )
                 }
             }
@@ -104,872 +114,586 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun startNipoVpnService() {
-        ContextCompat.startForegroundService(
-            this,
-            Intent(this, NipoVpnService::class.java)
-        )
+        ContextCompat.startForegroundService(this, Intent(this, NipoVpnService::class.java))
     }
 }
 
+private fun formatElapsed(seconds: Int): String {
+    val m = (seconds / 60).toString().padStart(2, '0')
+    val s = (seconds % 60).toString().padStart(2, '0')
+    return "$m:$s"
+}
+
 @Composable
-fun NipoVpnApp(
-    context: Context,
-    importUri: Uri?,
-    onStart: () -> Unit,
-    onStop: () -> Unit
-) {
-    var profiles by remember { mutableStateOf<List<NipoProfile>>(loadProfiles(context)) }
-    var openedProfileId by remember { mutableStateOf<String?>(null) }
-    var importDialog by remember { mutableStateOf(false) }
-    var importText by remember { mutableStateOf("") }
+fun NipoVpnApp(context: Context, importUri: Uri?, onStart: () -> Unit, onStop: () -> Unit) {
+    val c = NdTheme.colors
+    var profiles by remember { mutableStateOf(loadProfiles(context)) }
+    var tab by remember { mutableStateOf("profiles") }
+    var screen by remember { mutableStateOf("list") }
+    var editId by remember { mutableStateOf<String?>(null) }
+    var dialog by remember { mutableStateOf<String?>(null) }
+    var importText by remember { mutableStateOf("nipovpn://") }
+
+    val connectionState by ConnectionStatus.state.collectAsState()
+    val activeProfile = profiles.firstOrNull { it.enabled }
+    val connected = connectionState.running
+
+    fun persist(updated: List<NipoProfile>) { profiles = updated; saveProfiles(context, updated) }
 
     LaunchedEffect(importUri) {
         importUri?.toString()?.let { link ->
             try {
-                val profile = importNipoProfileFromLink(link)
-                profiles = profiles + profile
-                saveProfiles(context, profiles)
-                openedProfileId = profile.id
-                LogManager.append("Imported profile: ${profile.name}")
+                val p = importNipoProfileFromLink(link)
+                persist(profiles + p)
+                LogManager.append("Imported profile: ${p.name}")
             } catch (e: Exception) {
                 LogManager.append("Import failed: ${e.message}")
             }
         }
     }
 
-    if (importDialog) {
-        ImportProfileDialog(
-            importText = importText,
-            onImportTextChange = { importText = it },
-            onDismiss = { importDialog = false },
-            onImport = {
-                try {
-                    val profile = importNipoProfileFromLink(importText)
-                    profiles = profiles + profile
-                    saveProfiles(context, profiles)
-                    openedProfileId = profile.id
-                    LogManager.append("Imported profile: ${profile.name}")
-                    importDialog = false
-                    importText = ""
-                } catch (e: Exception) {
-                    LogManager.append("Import failed: ${e.message}")
-                }
-            }
-        )
-    }
-
-    val openedProfile = openedProfileId?.let { id ->
-        profiles.firstOrNull { profile -> profile.id == id }
-    }
-
-    if (openedProfile == null) {
-        ProfileListPage(
-            context = context,
-            profiles = profiles,
-            onOpenProfile = { profile -> openedProfileId = profile.id },
-            onProfilesChanged = { updatedProfiles ->
-                profiles = updatedProfiles
-                saveProfiles(context, profiles)
-            },
-            onAddProfile = {
-                val newProfile = NipoProfile(
-                    id = UUID.randomUUID().toString(),
-                    name = "Profile ${profiles.size + 1}",
-                    enabled = false,
-                    config = NipoConfig()
-                )
-                profiles = profiles + newProfile
-                saveProfiles(context, profiles)
-                openedProfileId = newProfile.id
-            },
-            onImportProfile = { importDialog = true },
-            onStart = onStart,
-            onStop = onStop
-        )
-    } else {
-        ProfileDetailPage(
-            context = context,
-            profile = openedProfile,
-            profiles = profiles,
-            onBack = { openedProfileId = null },
-            onProfilesChanged = { updatedProfiles ->
-                profiles = updatedProfiles
-                saveProfiles(context, profiles)
-                if (profiles.none { profile -> profile.id == openedProfile.id }) {
-                    openedProfileId = null
-                }
-            },
-            onStart = onStart,
-            onStop = onStop
-        )
-    }
-}
-
-@Composable
-fun ProfileListPage(
-    context: Context,
-    profiles: List<NipoProfile>,
-    onOpenProfile: (NipoProfile) -> Unit,
-    onProfilesChanged: (List<NipoProfile>) -> Unit,
-    onAddProfile: () -> Unit,
-    onImportProfile: () -> Unit,
-    onStart: () -> Unit,
-    onStop: () -> Unit
-) {
-    val appLogs by LogManager.logs.collectAsState()
-    var nativeLogs by remember { mutableStateOf("") }
-    val logs = remember(appLogs, nativeLogs) {
-        listOf(appLogs, nativeLogs)
-            .map { it.trim() }
-            .filter { it.isNotBlank() }
-            .distinct()
-            .joinToString("\n")
-    }
-    val logScroll = rememberScrollState()
-    val activeProfile = profiles.firstOrNull { it.enabled }
-    var activePingMs by remember { mutableStateOf<Long?>(null) }
-
-    LaunchedEffect(activeProfile?.id) {
-        activePingMs = null
-        while (activeProfile != null) {
-            activePingMs = pingGoogleDelayMs(activeProfile)
-            delay(10_000)
-        }
-    }
-
-    LaunchedEffect(Unit) {
-        val logFile = File(context.filesDir, "logs/nipovpn.log")
-        while (true) {
-            nativeLogs = readTailLogFile(logFile)
-            delay(1_000)
-        }
-    }
-
-    LaunchedEffect(logs) {
-        logScroll.animateScrollTo(logScroll.maxValue)
-    }
-
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(WindowInsets.safeDrawing.asPaddingValues())
-            .verticalScroll(rememberScrollState())
-            .padding(horizontal = 16.dp, vertical = 12.dp)
-    ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Image(
-                painter = painterResource(R.drawable.nipovpn_logo),
-                contentDescription = "NipoVPN",
-                modifier = Modifier
-                    .size(56.dp)
-                    .clip(CircleShape)
-            )
-            Spacer(Modifier.width(12.dp))
-            Text(text = "NipoVPN", style = MaterialTheme.typography.headlineSmall)
-        }
-
-        Spacer(Modifier.height(12.dp))
-
-        SectionCardActions(
-            title = "Profiles",
-            actions = {
-                SmallMaterialIconButton(
-                    imageVector = Icons.Filled.Add,
-                    contentColor = NipoDarkOrange,
-                    borderColor = NipoDarkOrange,
-                    onClick = onAddProfile
-                )
-                SmallMaterialIconButton(
-                    imageVector = Icons.Filled.FileDownload,
-                    contentColor = NipoDarkOrange,
-                    borderColor = NipoDarkOrange,
-                    onClick = onImportProfile
-                )
-            }
-        ) {
-            if (profiles.isEmpty()) {
-                Text(
-                    text = "No profiles.\nTap + or import to add one.",
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-
-            profiles.forEach { profile ->
-                ProfileListItem(
-                    profile = profile,
-                    pingMs = if (profile.enabled) activePingMs else null,
-                    onClick = { onOpenProfile(profile) },
-                    onStartStopClick = {
-                        if (profile.enabled) {
-                            val updatedProfiles = profiles.map { item -> item.copy(enabled = false) }
-                            onProfilesChanged(updatedProfiles)
-                            onStop()
-                            activePingMs = null
-                            LogManager.append("Stopped profile: ${profile.name}")
-                        } else {
-                            val updatedProfiles = profiles.map { item ->
-                                if (item.id == profile.id) item.copy(enabled = true) else item.copy(enabled = false)
-                            }
-                            onProfilesChanged(updatedProfiles)
-                            generateConfigFile(context, profile.config.normalized())
-                            onStart()
-                            LogManager.append("Started profile: ${profile.name}")
-                        }
-                    }
-                )
-            }
-        }
-
-        Spacer(Modifier.height(12.dp))
-
-        SectionCardActions(
-            title = "Logs",
-            actions = {
-                SmallMaterialIconButton(
-                    imageVector = Icons.Filled.CleaningServices,
-                    contentColor = NipoDarkOrange,
-                    borderColor = NipoDarkOrange,
-                    onClick = {
-                        LogManager.clear()
-                        clearNativeLogFile(context)
-                        nativeLogs = ""
-                    }
-                )
-                SmallMaterialIconButton(
-                    imageVector = Icons.Filled.ContentCopy,
-                    contentColor = NipoDarkOrange,
-                    borderColor = NipoDarkOrange,
-                    onClick = {
-                        val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                        clipboard.setPrimaryClip(
-                            ClipData.newPlainText("NipoVPN Logs", logs.ifBlank { "No logs yet..." })
-                        )
-                        LogManager.append("Logs copied to clipboard")
-                    }
-                )
-            }
-        ) {
-            val currentLogLevel = profiles.firstOrNull { it.enabled }?.config?.logLevel
-                ?: profiles.firstOrNull()?.config?.logLevel
-                ?: "INFO"
-            LogLevelSelector(
-                logLevel = currentLogLevel,
-                onLogLevelChange = { value ->
-                    val updatedProfiles = profiles.map { item ->
-                        item.copy(config = item.config.copy(logLevel = value).normalized())
-                    }
-                    onProfilesChanged(updatedProfiles)
-                    LogManager.append("Log level changed to: $value")
-                }
-            )
-            Spacer(Modifier.height(8.dp))
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(320.dp)
-                    .background(
-                        color = MaterialTheme.colorScheme.surfaceVariant,
-                        shape = RoundedCornerShape(14.dp)
-                    )
-                    .padding(12.dp)
-                    .verticalScroll(logScroll)
-            ) {
-                Text(
-                    text = logs.ifBlank { "No logs yet..." },
-                    fontFamily = FontFamily.Monospace,
-                    style = MaterialTheme.typography.bodySmall
-                )
-            }
-        }
-    }
-}
-
-private fun readTailLogFile(logFile: File, maxBytes: Int = 24 * 1024): String {
-    return try {
-        if (!logFile.exists()) return ""
-        val length = logFile.length()
-        val skip = (length - maxBytes).coerceAtLeast(0)
-        logFile.inputStream().use { input ->
-            if (skip > 0) input.skip(skip)
-            input.readBytes().toString(Charsets.UTF_8)
-        }
-    } catch (_: Exception) {
-        ""
-    }
-}
-
-private fun clearNativeLogFile(context: Context) {
-    try {
-        val logFile = File(context.filesDir, "logs/nipovpn.log")
-        logFile.parentFile?.mkdirs()
-        logFile.writeText("")
-    } catch (_: Exception) {
-    }
-}
-
-@Composable
-fun ProfileDetailPage(
-    context: Context,
-    profile: NipoProfile,
-    profiles: List<NipoProfile>,
-    onBack: () -> Unit,
-    onProfilesChanged: (List<NipoProfile>) -> Unit,
-    onStart: () -> Unit,
-    onStop: () -> Unit
-) {
-    var name by remember(profile.id) { mutableStateOf(profile.name) }
-    var cfg by remember(profile.id) { mutableStateOf(profile.config.normalized()) }
-
-    fun saveProfile() {
-        val updatedProfiles = profiles.map { item ->
-            if (item.id == profile.id) item.copy(name = name, config = cfg.normalized()) else item
-        }
-        onProfilesChanged(updatedProfiles)
-        LogManager.append("Saved profile: $name")
-    }
-
-    fun startThisProfile() {
-        val finalCfg = cfg.normalized()
-        val updatedProfiles = profiles.map { item ->
-            if (item.id == profile.id) item.copy(name = name, enabled = true, config = finalCfg) else item.copy(enabled = false)
-        }
-        onProfilesChanged(updatedProfiles)
-        generateConfigFile(context, finalCfg)
+    // ── connection control ──────────────────────────────────────────
+    fun startProfile(target: NipoProfile) {
+        persist(profiles.map { if (it.id == target.id) it.copy(enabled = true) else it.copy(enabled = false) })
+        generateConfigFile(context, target.config.normalized())
         onStart()
+        LogManager.append("Started profile: ${target.name}")
     }
-
-    fun stopThisProfile() {
-        val updatedProfiles = profiles.map { item ->
-            if (item.id == profile.id) item.copy(name = name, enabled = false, config = cfg.normalized()) else item
-        }
-        onProfilesChanged(updatedProfiles)
+    fun stopAll(name: String?) {
+        persist(profiles.map { it.copy(enabled = false) })
         onStop()
-        LogManager.append("Stopped profile: $name")
+        LogManager.append("Stopped profile: ${name ?: "active"}")
+    }
+    fun toggle(id: String) {
+        val target = profiles.firstOrNull { it.id == id } ?: return
+        if (connected && activeProfile?.id == id) stopAll(target.name) else startProfile(target)
     }
 
-    fun deleteThisProfile() {
-        val wasRunning = profile.enabled
-        val updatedProfiles = profiles.filter { item -> item.id != profile.id }
-        onProfilesChanged(updatedProfiles)
-        if (wasRunning) {
-            onStop()
-        }
-        LogManager.append("Deleted profile: $name")
+    fun addProfile() {
+        val np = NipoProfile(id = UUID.randomUUID().toString(), name = "New profile", enabled = false, config = NipoConfig())
+        persist(profiles + np)
+        editId = np.id
+        screen = "config"
     }
 
-    fun copyExportToClipboard() {
-        val link = exportNipoProfileToLink(
-            NipoProfile(
-                id = profile.id,
-                name = name,
-                enabled = profile.enabled,
-                config = cfg.normalized()
-            )
-        )
-        val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-        clipboard.setPrimaryClip(ClipData.newPlainText("NipoVPN Profile", link))
-        LogManager.append("Profile copied to clipboard: $name")
+    // ── live telemetry ──────────────────────────────────────────────
+    var nowMillis by remember { mutableStateOf(System.currentTimeMillis()) }
+    LaunchedEffect(connectionState.running) {
+        while (connectionState.running) { nowMillis = System.currentTimeMillis(); delay(1_000) }
+    }
+    val elapsedSeconds = connectionState.startedAtMillis?.let { ((nowMillis - it) / 1000L).toInt().coerceAtLeast(0) } ?: 0
+
+    var pingMs by remember { mutableStateOf<Long?>(null) }
+    LaunchedEffect(activeProfile?.id, connected) {
+        if (!connected || activeProfile == null) { pingMs = null; return@LaunchedEffect }
+        while (true) { pingMs = pingGoogleDelayMs(activeProfile); delay(5_000) }
     }
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(WindowInsets.safeDrawing.asPaddingValues())
-            .verticalScroll(rememberScrollState())
-            .padding(horizontal = 16.dp, vertical = 12.dp)
-    ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            SmallOutlinedButton(text = "← Back", onClick = onBack)
-            GreenSaveButton(modifier = Modifier.weight(1f), onClick = { saveProfile() })
-        }
+    val logs by LogManager.logs.collectAsState()
+    val editing = profiles.firstOrNull { it.id == editId }
+    val showNav = screen == "list"
 
-        Spacer(Modifier.height(16.dp))
-
-        SectionCard("Profile") {
-            ConfigTextField("Profile Name", name) { value -> name = value }
-            Spacer(Modifier.height(12.dp))
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                ProfilePlayPauseButton(
-                    running = profile.enabled,
-                    onClick = { if (profile.enabled) stopThisProfile() else startThisProfile() }
+    Box(Modifier.fillMaxSize().background(c.black)) {
+        Column(Modifier.fillMaxSize()) {
+            Box(Modifier.weight(1f).fillMaxWidth()) {
+                when {
+                    screen == "config" && editing != null -> NdConfigScreen(
+                        context = context,
+                        profile = editing,
+                        connected = connected && editing.id == activeProfile?.id,
+                        onBack = { screen = "list" },
+                        onToggle = { toggle(editing.id) },
+                        onSave = { updated ->
+                            persist(profiles.map { if (it.id == updated.id) updated else it })
+                            screen = "list"
+                            LogManager.append("Saved profile: ${updated.name}")
+                        },
+                        onDelete = { dialog = "delete" },
+                        onCopyLink = {
+                            val link = exportNipoProfileToLink(editing)
+                            copyToClipboard(context, "NipoVPN Profile", link)
+                            LogManager.append("Profile copied: ${editing.name}")
+                        },
+                    )
+                    tab == "profiles" && profiles.isEmpty() -> NdEmptyState(
+                        onAdd = { addProfile() },
+                        onImport = { dialog = "import" },
+                    )
+                    tab == "profiles" -> NdProfilesScreen(
+                        profiles = profiles,
+                        activeId = activeProfile?.id,
+                        connected = connected,
+                        elapsed = formatElapsed(elapsedSeconds),
+                        pingMs = pingMs,
+                        onToggle = { toggle(it) },
+                        onOpen = { editId = it; screen = "config" },
+                        onAdd = { addProfile() },
+                        onImport = { dialog = "import" },
+                    )
+                    else -> NdLogsScreen(
+                        context = context,
+                        profiles = profiles,
+                        logs = logs,
+                        connected = connected,
+                        activeName = activeProfile?.name ?: "",
+                        onLevelChange = { level ->
+                            persist(profiles.map { it.copy(config = it.config.copy(logLevel = level).normalized()) })
+                            LogManager.append("Log level changed to: $level")
+                        },
+                        onClear = { LogManager.clear() },
+                        onCopy = {
+                            copyToClipboard(context, "NipoVPN Logs", logs.ifBlank { "No logs yet..." })
+                            LogManager.append("Logs copied to clipboard")
+                        },
+                    )
+                }
+            }
+            if (showNav) {
+                NdDivider(c.border)
+                NdBottomNav(
+                    items = listOf(
+                        NdNavItem("profiles", Icons.AutoMirrored.Filled.List, "Profiles"),
+                        NdNavItem("logs", Icons.Filled.Terminal, "Logs"),
+                    ),
+                    active = tab,
+                    onChange = { tab = it },
                 )
-                SmallMaterialIconButton(
-                    imageVector = Icons.Filled.ContentCopy,
-                    contentColor = NipoDarkOrange,
-                    borderColor = NipoDarkOrange,
-                    onClick = { copyExportToClipboard() }
-                )
-                DeleteProfileIconButton(onDeleteConfirmed = { deleteThisProfile() })
             }
         }
 
-        Spacer(Modifier.height(12.dp))
-
-        SectionCard("Config") {
-            Text("Connection", style = MaterialTheme.typography.titleMedium)
-            ConfigTextField("Token", cfg.token) { value -> cfg = cfg.copy(token = value) }
-
-            CompactSwitchLine {
-                MiniSwitch("HTTP", cfg.protocol == "http") { value ->
-                    if (value) cfg = cfg.copy(protocol = "http").normalized()
-                }
-                MiniSwitch("SOCKS5", cfg.protocol == "socks5") { value ->
-                    if (value) cfg = cfg.copy(protocol = "socks5").normalized()
-                }
-            }
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                CompactConfigTextField(
-                    label = "Timeout",
-                    value = cfg.timeout,
-                    modifier = Modifier.weight(1f)
-                ) { value -> cfg = cfg.copy(timeout = value) }
-                CompactConfigTextField(
-                    label = "Pull",
-                    value = cfg.pullTimeout,
-                    modifier = Modifier.weight(1f)
-                ) { value -> cfg = cfg.copy(pullTimeout = value) }
-            }
-
-            CompactSwitchLine {
-                MiniSwitch("Tunnel", cfg.tunnelEnable) { value ->
-                    cfg = cfg.copy(
-                        tunnelEnable = value,
-                        connectionReuse = if (value) false else cfg.connectionReuse
-                    ).normalized()
-                }
-                MiniSwitch("Reuse", cfg.connectionReuse) { value ->
-                    cfg = cfg.copy(
-                        connectionReuse = value,
-                        tunnelEnable = if (value) false else cfg.tunnelEnable
-                    ).normalized()
-                }
-                MiniSwitch("TLS", cfg.tlsEnable) { value ->
-                    cfg = cfg.copy(tlsEnable = value).normalized()
-                }
-            }
-
-            Spacer(Modifier.height(12.dp))
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                CompactConfigTextField(
-                    label = "Listen IP",
-                    value = cfg.listenIp,
-                    modifier = Modifier.weight(1f)
-                ) { value -> cfg = cfg.copy(listenIp = value) }
-                CompactConfigTextField(
-                    label = "Port",
-                    value = cfg.listenPort,
-                    modifier = Modifier.weight(1f)
-                ) { value -> cfg = cfg.copy(listenPort = value) }
-            }
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                CompactConfigTextField(
-                    label = "Server IP",
-                    value = cfg.serverIp,
-                    modifier = Modifier.weight(1f)
-                ) { value -> cfg = cfg.copy(serverIp = value) }
-                CompactConfigTextField(
-                    label = "Port",
-                    value = cfg.serverPort,
-                    modifier = Modifier.weight(1f)
-                ) { value -> cfg = cfg.copy(serverPort = value) }
-            }
-
-            MultiTextField("User Agent", cfg.userAgent) { value -> cfg = cfg.copy(userAgent = value) }
-            Spacer(Modifier.height(12.dp))
-            MultiTextField("Fake URLs", cfg.fakeUrls) { value -> cfg = cfg.copy(fakeUrls = value) }
-            MultiTextField("End Points", cfg.endPoints) { value -> cfg = cfg.copy(endPoints = value) }
-            Spacer(Modifier.height(6.dp))
-            MethodCheckboxes(
-                methods = cfg.methods,
-                onMethodsChange = { value -> cfg = cfg.copy(methods = value) }
+        if (dialog == "import") {
+            NdImportDialog(
+                value = importText,
+                onChange = { importText = it },
+                onDismiss = { dialog = null },
+                onConfirm = {
+                    try {
+                        val p = importNipoProfileFromLink(importText)
+                        persist(profiles + p)
+                        LogManager.append("Imported profile: ${p.name}")
+                    } catch (e: Exception) {
+                        LogManager.append("Import failed: ${e.message}")
+                    }
+                    dialog = null
+                    importText = "nipovpn://"
+                },
             )
         }
-
-        Spacer(Modifier.height(24.dp))
+        if (dialog == "delete" && editing != null) {
+            NdDeleteDialog(
+                name = editing.name,
+                onDismiss = { dialog = null },
+                onConfirm = {
+                    val wasActive = editing.id == activeProfile?.id
+                    persist(profiles.filter { it.id != editing.id })
+                    if (wasActive) onStop()
+                    dialog = null
+                    screen = "list"
+                    LogManager.append("Deleted profile: ${editing.name}")
+                },
+            )
+        }
     }
 }
 
+private fun copyToClipboard(context: Context, label: String, text: String) {
+    val cb = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+    cb.setPrimaryClip(ClipData.newPlainText(label, text))
+}
+
+// ── Top bar ─────────────────────────────────────────────────────────
+@Composable
+private fun NdTopBar(title: String, leading: (@Composable () -> Unit)? = null, trailing: (@Composable () -> Unit)? = null) {
+    val c = NdTheme.colors
+    Row(
+        Modifier.fillMaxWidth().windowInsetsPadding(WindowInsets.safeDrawing).padding(horizontal = 16.dp, vertical = 14.dp).height(60.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        if (leading != null) leading()
+        Text(
+            title.uppercase(),
+            modifier = Modifier.weight(1f),
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            style = TextStyle(fontFamily = NothingFonts.Mono, fontSize = 15.sp, letterSpacing = 0.12.em, color = c.display),
+        )
+        if (trailing != null) Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) { trailing() }
+    }
+}
+
+// ── Connection hero (instrument panel) ──────────────────────────────
+@Composable
+private fun NdConnectionHero(
+    hc: NdColors,
+    profile: NipoProfile?,
+    connected: Boolean,
+    elapsed: String,
+    pingMs: Long?,
+    onToggle: () -> Unit,
+) {
+    val statusColor = if (connected) hc.success else hc.secondary
+    val shape = RoundedCornerShape(16.dp)
+    Box(
+        Modifier.fillMaxWidth().clip(shape).background(hc.surface).border(1.dp, hc.borderVisible, shape),
+    ) {
+        NdDotGrid(Modifier.matchParentSize(), subtle = true)
+        Column(Modifier.padding(22.dp)) {
+            // status row: status + ping (ping only when connected)
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                NdStatusOn(hc, if (connected) "Connected" else "Offline", statusColor, dot = true)
+                if (connected) {
+                    Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+                        Text(pingMs?.toString() ?: "—", style = TextStyle(fontFamily = NothingFonts.Mono, fontSize = 14.sp, color = hc.primary))
+                        NdLabelOn(hc, "ms", hc.secondary)
+                    }
+                }
+            }
+            Spacer(Modifier.height(16.dp))
+            // compact timer (clean Space Mono, tabular) + profile name on one line
+            Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text(
+                    if (connected) elapsed else "--:--",
+                    modifier = Modifier.alignByBaseline(),
+                    style = TextStyle(fontFamily = NothingFonts.Mono, fontWeight = FontWeight.Bold, fontSize = 42.sp, letterSpacing = 0.01.em, fontFeatureSettings = "tnum", color = if (connected) hc.display else hc.disabled),
+                )
+                Text(
+                    if (connected) (profile?.name ?: "") else "No active tunnel",
+                    modifier = Modifier.weight(1f).alignByBaseline(),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    style = TextStyle(fontFamily = NothingFonts.Body, fontWeight = FontWeight.Medium, fontSize = 15.sp, color = hc.primary),
+                )
+            }
+            Spacer(Modifier.height(22.dp))
+            if (connected) {
+                NdButton("Disconnect", onToggle, variant = NdButtonVariant.DESTRUCTIVE, icon = Icons.Filled.Pause, full = true)
+            } else {
+                NdButton("Connect", onToggle, variant = NdButtonVariant.PRIMARY, icon = Icons.Filled.PlayArrow, full = true)
+            }
+        }
+    }
+}
+
+// Status with explicit token set (for inverted hero).
+@Composable
+private fun NdStatusOn(hc: NdColors, label: String, color: androidx.compose.ui.graphics.Color, dot: Boolean) {
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        if (dot) Box(Modifier.size(7.dp).background(color))
+        Text("[ ${label.uppercase()} ]", style = TextStyle(fontFamily = NothingFonts.Mono, fontSize = 11.sp, letterSpacing = 0.1.em, color = color))
+    }
+}
+
+// ── Profile row ─────────────────────────────────────────────────────
+@Composable
+private fun NdProfileRow(profile: NipoProfile, active: Boolean, onToggle: () -> Unit, onOpen: () -> Unit) {
+    val c = NdTheme.colors
+    Row(
+        Modifier.fillMaxWidth()
+            .background(if (active) c.surfaceRaised else androidx.compose.ui.graphics.Color.Transparent)
+            .height(72.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(Modifier.fillMaxHeight().width(2.dp).background(if (active) c.success else androidx.compose.ui.graphics.Color.Transparent))
+        Row(Modifier.weight(1f).fillMaxHeight().ndClick(onClick = onOpen).padding(start = 14.dp, end = 8.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+            Box(Modifier.size(8.dp).background(if (active) c.success else androidx.compose.ui.graphics.Color.Transparent).then(if (active) Modifier else Modifier.border(1.dp, c.borderVisible)))
+            Column(Modifier.weight(1f)) {
+                Text(profile.name, maxLines = 1, overflow = TextOverflow.Ellipsis, style = TextStyle(fontFamily = NothingFonts.Body, fontWeight = FontWeight.Medium, fontSize = 16.sp, color = c.primary))
+                Spacer(Modifier.height(3.dp))
+                Text(profile.config.protocol.uppercase(), style = TextStyle(fontFamily = NothingFonts.Mono, fontSize = 12.sp, letterSpacing = 0.02.em, color = c.secondary))
+            }
+        }
+        Box(Modifier.size(44.dp).clip(RoundedCornerShape(999.dp)).border(1.dp, c.borderVisible, RoundedCornerShape(999.dp)).ndClick(onClick = onToggle), contentAlignment = Alignment.Center) {
+            Icon(if (active) Icons.Filled.Pause else Icons.Filled.PlayArrow, null, tint = c.primary, modifier = Modifier.size(18.dp))
+        }
+        Box(Modifier.width(32.dp), contentAlignment = Alignment.Center) {
+            Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, null, tint = c.disabled, modifier = Modifier.size(18.dp))
+        }
+    }
+}
+
+// ── Profiles screen ─────────────────────────────────────────────────
+@Composable
+private fun NdProfilesScreen(
+    profiles: List<NipoProfile>,
+    activeId: String?,
+    connected: Boolean,
+    elapsed: String,
+    pingMs: Long?,
+    onToggle: (String) -> Unit,
+    onOpen: (String) -> Unit,
+    onAdd: () -> Unit,
+    onImport: () -> Unit,
+) {
+    val c = NdTheme.colors
+    val heroColors = c // hero follows the ambient theme (no inverted panel)
+    val displayProfile = profiles.firstOrNull { it.id == activeId } ?: profiles.firstOrNull()
+    Column(Modifier.fillMaxSize()) {
+        NdTopBar(
+            title = "NipoVPN",
+            leading = {
+                Box(Modifier.size(30.dp).border(1.dp, c.display), contentAlignment = Alignment.Center) {
+                    Text("N", style = TextStyle(fontFamily = NothingFonts.Mono, fontWeight = FontWeight.Bold, fontSize = 16.sp, color = c.display))
+                }
+            },
+            trailing = {
+                NdIconButton(Icons.Filled.FileDownload, onImport)
+                NdIconButton(Icons.Filled.Add, onAdd)
+            },
+        )
+        Column(Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()).padding(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 24.dp)) {
+            NdConnectionHero(
+                hc = heroColors,
+                profile = displayProfile,
+                connected = connected,
+                elapsed = elapsed,
+                pingMs = pingMs,
+                onToggle = { displayProfile?.id?.let(onToggle) },
+            )
+            Spacer(Modifier.height(28.dp))
+            NdLabel("Profiles · ${profiles.size}")
+            Spacer(Modifier.height(4.dp))
+            NdDivider(c.borderVisible)
+            profiles.forEachIndexed { i, p ->
+                NdProfileRow(p, p.id == activeId, onToggle = { onToggle(p.id) }, onOpen = { onOpen(p.id) })
+                if (i < profiles.size - 1) NdDivider(c.border)
+            }
+            NdDivider(c.border)
+        }
+    }
+}
+
+// ── Logs screen ─────────────────────────────────────────────────────
+@Composable
+private fun NdLogsScreen(
+    context: Context,
+    profiles: List<NipoProfile>,
+    logs: String,
+    connected: Boolean,
+    activeName: String,
+    onLevelChange: (String) -> Unit,
+    onClear: () -> Unit,
+    onCopy: () -> Unit,
+) {
+    val c = NdTheme.colors
+    val level = (profiles.firstOrNull { it.enabled }?.config?.logLevel ?: profiles.firstOrNull()?.config?.logLevel ?: "INFO").uppercase()
+    val scroll = rememberScrollState()
+    LaunchedEffect(logs) { scroll.animateScrollTo(scroll.maxValue) }
+
+    fun lineColor(ln: String) = when {
+        ln.contains("[ERROR", true) || ln.contains("Failed", true) || ln.contains("error", false) -> c.accent
+        ln.contains("[INFO", true) -> c.primary
+        ln.contains("[TRACE", true) -> c.secondary
+        ln.contains("[DEBUG", true) -> c.disabled
+        else -> c.secondary
+    }
+
+    Column(Modifier.fillMaxSize()) {
+        NdTopBar(
+            title = "Logs",
+            trailing = {
+                NdIconButton(Icons.Filled.CleaningServices, onClear)
+                NdIconButton(Icons.Filled.ContentCopy, onCopy)
+            },
+        )
+        Box(Modifier.padding(horizontal = 16.dp).padding(bottom = 12.dp)) {
+            NdSegmented(
+                options = listOf(NdSegOption("INFO", "Info"), NdSegOption("TRACE", "Trace"), NdSegOption("DEBUG", "Debug")),
+                value = level,
+                onChange = onLevelChange,
+                full = true,
+            )
+        }
+        val shape = RoundedCornerShape(12.dp)
+        Column(Modifier.weight(1f).fillMaxWidth().padding(horizontal = 16.dp).padding(bottom = 16.dp).clip(shape).background(c.surface).border(1.dp, c.borderVisible, shape)) {
+            Row(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 12.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                NdStatus(if (connected) "Streaming · $activeName" else "Idle", color = if (connected) c.success else c.secondary, dot = NdDot.SOLID)
+                NdLabel(level)
+            }
+            NdDivider(c.border)
+            Column(Modifier.weight(1f).fillMaxWidth().verticalScroll(scroll).padding(horizontal = 14.dp, vertical = 12.dp)) {
+                logs.ifBlank { "No logs yet..." }.split("\n").forEach { ln ->
+                    Text(ln, style = TextStyle(fontFamily = NothingFonts.Mono, fontSize = 12.sp, lineHeight = 20.sp, color = lineColor(ln)))
+                }
+            }
+        }
+    }
+}
+
+// ── Config screen ───────────────────────────────────────────────────
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-fun MethodCheckboxes(methods: String, onMethodsChange: (String) -> Unit) {
-    val selected = methods.lines()
-        .map { it.trim().uppercase() }
-        .filter { it.isNotBlank() }
-        .toSet()
-    val options = listOf("GET", "POST", "PUT", "DELETE")
-
-    FlowRow(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-        verticalArrangement = Arrangement.spacedBy(4.dp)
-    ) {
-        options.forEach { method ->
-            SelectableOrangePill(
-                text = method,
-                selected = selected.contains(method),
-                onClick = {
-                    val newSet = if (selected.contains(method)) selected - method else selected + method
-                    onMethodsChange(options.filter { newSet.contains(it) }.joinToString("\n"))
-                }
-            )
-        }
-    }
-}
-
-@Composable
-fun LogLevelSelector(logLevel: String, onLogLevelChange: (String) -> Unit) {
-    val options = listOf("INFO", "TRACE", "DEBUG")
-    val selected = logLevel.trim().uppercase().ifBlank { "INFO" }
-
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(8.dp)
-    ) {
-        options.forEach { level ->
-            SelectableOrangePill(
-                text = level,
-                selected = selected == level,
-                onClick = { onLogLevelChange(level) }
-            )
-        }
-    }
-}
-
-@Composable
-fun ImportProfileDialog(
-    importText: String,
-    onImportTextChange: (String) -> Unit,
-    onDismiss: () -> Unit,
-    onImport: () -> Unit
-) {
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("Import NipoVPN Profile") },
-        text = {
-            OutlinedTextField(
-                value = importText,
-                onValueChange = onImportTextChange,
-                label = { Text("nipovpn://...") },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(180.dp)
-            )
-        },
-        confirmButton = { Button(onClick = onImport) { Text("Import") } },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } }
-    )
-}
-
-@Composable
-fun ProfileListItem(
+private fun NdConfigScreen(
+    context: Context,
     profile: NipoProfile,
-    pingMs: Long?,
-    onClick: () -> Unit,
-    onStartStopClick: () -> Unit
+    connected: Boolean,
+    onBack: () -> Unit,
+    onToggle: () -> Unit,
+    onSave: (NipoProfile) -> Unit,
+    onDelete: () -> Unit,
+    onCopyLink: () -> Unit,
 ) {
-    val activeText = Color.White
-    val inactiveText = MaterialTheme.colorScheme.onSurface
-    val inactiveSubText = MaterialTheme.colorScheme.onSurfaceVariant
-    val inactiveContainer = MaterialTheme.colorScheme.surfaceVariant
+    val c = NdTheme.colors
+    var name by remember(profile.id) { mutableStateOf(profile.name) }
+    var cfg by remember(profile.id) { mutableStateOf(profile.config.normalized()) }
+    fun save() = onSave(profile.copy(name = name, config = cfg.normalized()))
 
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(92.dp)
-            .padding(vertical = 3.dp)
-            .clickable { onClick() },
-        colors = CardDefaults.cardColors(
-            containerColor = if (profile.enabled) NipoGreen else inactiveContainer
-        ),
-        shape = RoundedCornerShape(18.dp)
-    ) {
-        Row(
-            modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = profile.name,
-                    style = MaterialTheme.typography.titleMedium,
-                    color = if (profile.enabled) activeText else inactiveText
-                )
-                Text(
-                    text = "${profile.config.protocol.uppercase()} 127.0.0.1:${profile.config.listenPort}",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = if (profile.enabled) activeText else inactiveSubText
-                )
-                if (profile.enabled) {
-                    Text(
-                        text = "google.com: ${pingMs?.let { "${it} ms" } ?: "-- ms"}",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = activeText
-                    )
-                }
-            }
-            ProfilePlayPauseButton(running = profile.enabled, onClick = onStartStopClick)
-            Text(
-                text = "›",
-                style = MaterialTheme.typography.headlineSmall,
-                color = if (profile.enabled) activeText else inactiveText
-            )
-        }
+    val selectedMethods = cfg.methods.lines().map { it.trim().uppercase() }.filter { it.isNotBlank() }.toSet()
+    fun toggleMethod(m: String) {
+        val set = if (selectedMethods.contains(m)) selectedMethods - m else selectedMethods + m
+        cfg = cfg.copy(methods = listOf("GET", "POST", "PUT", "DELETE").filter { set.contains(it) }.joinToString("\n"))
     }
-}
 
-@Composable
-fun SectionCard(title: String, content: @Composable ColumnScope.() -> Unit) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(22.dp),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
-    ) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            Text(title, style = MaterialTheme.typography.titleLarge)
-            Spacer(Modifier.height(12.dp))
-            content()
-        }
-    }
-}
-
-@Composable
-fun SectionCardActions(
-    title: String,
-    actions: @Composable () -> Unit,
-    content: @Composable ColumnScope.() -> Unit
-) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(22.dp),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
-    ) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(title, style = MaterialTheme.typography.titleLarge)
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    actions()
-                }
-            }
-            Spacer(Modifier.height(12.dp))
-            content()
-        }
-    }
-}
-
-@Composable
-fun CompactConfigTextField(
-    label: String,
-    value: String,
-    modifier: Modifier = Modifier,
-    onChange: (String) -> Unit
-) {
-    OutlinedTextField(
-        value = value,
-        onValueChange = onChange,
-        label = { Text(label) },
-        singleLine = true,
-        shape = RoundedCornerShape(14.dp),
-        modifier = modifier
-            .height(62.dp)
-            .padding(vertical = 2.dp)
-    )
-}
-
-@Composable
-fun CompactSwitchLine(content: @Composable () -> Unit) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(8.dp)
-    ) {
-        content()
-    }
-}
-
-@Composable
-fun MiniSwitch(label: String, value: Boolean, onChange: (Boolean) -> Unit) {
-    Row(
-        modifier = Modifier.height(42.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(4.dp)
-    ) {
-        Text(text = label, style = MaterialTheme.typography.bodySmall)
-        Switch(
-            checked = value,
-            onCheckedChange = onChange,
-            colors = SwitchDefaults.colors(
-                checkedThumbColor = Color.White,
-                checkedTrackColor = NipoGreen,
-                checkedBorderColor = NipoGreen,
-                uncheckedThumbColor = MaterialTheme.colorScheme.outline,
-                uncheckedTrackColor = MaterialTheme.colorScheme.surfaceVariant,
-                uncheckedBorderColor = MaterialTheme.colorScheme.outline
-            )
+    Column(Modifier.fillMaxSize()) {
+        NdTopBar(
+            title = "Edit Profile",
+            leading = { NdBackButton(Icons.AutoMirrored.Filled.ArrowBack, onBack) },
+            trailing = { NdButton("Save", { save() }, variant = NdButtonVariant.PRIMARY) },
         )
-    }
-}
+        Column(Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()).padding(start = 16.dp, end = 16.dp, bottom = 32.dp)) {
 
-@Composable
-fun SelectableOrangePill(text: String, selected: Boolean, onClick: () -> Unit) {
-    val background = if (selected) NipoGreen else MaterialTheme.colorScheme.surface
-    val textColor = if (selected) Color.White else MaterialTheme.colorScheme.onSurface
+            NdSection("Profile") {
+                NdBoxInput("Profile name", name, { name = it }, mono = false)
+                NdBoxInput("Token", cfg.token, { cfg = cfg.copy(token = it) }, trailing = {
+                    NdIconButton(Icons.Filled.ContentCopy, { copyToClipboard(context, "Token", cfg.token) }, size = 28.dp)
+                })
+            }
 
-    Box(
-        modifier = Modifier
-            .height(36.dp)
-            .clickable { onClick() }
-            .background(background, RoundedCornerShape(18.dp))
-            .padding(horizontal = 14.dp, vertical = 8.dp)
-    ) {
-        Text(text = text, color = textColor, style = MaterialTheme.typography.bodySmall)
-    }
-}
+            NdSection("Connection") {
+                NdSegmented(
+                    options = listOf(NdSegOption("http", "HTTP"), NdSegOption("socks5", "SOCKS5")),
+                    value = cfg.protocol,
+                    onChange = { cfg = cfg.copy(protocol = it).normalized() },
+                    full = true,
+                )
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    NdBoxInput("Timeout · s", cfg.timeout, { cfg = cfg.copy(timeout = it) }, numeric = true, modifier = Modifier.weight(1f))
+                    NdBoxInput("Pull", cfg.pullTimeout, { cfg = cfg.copy(pullTimeout = it) }, numeric = true, modifier = Modifier.weight(1f))
+                }
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    NdToggleBox("Tunnel", cfg.tunnelEnable, {
+                        cfg = cfg.copy(tunnelEnable = it, connectionReuse = if (it) false else cfg.connectionReuse).normalized()
+                    }, Modifier.weight(1f))
+                    NdToggleBox("Reuse", cfg.connectionReuse, {
+                        cfg = cfg.copy(connectionReuse = it, tunnelEnable = if (it) false else cfg.tunnelEnable).normalized()
+                    }, Modifier.weight(1f))
+                    NdToggleBox("TLS", cfg.tlsEnable, { cfg = cfg.copy(tlsEnable = it).normalized() }, Modifier.weight(1f))
+                }
+            }
 
-@Composable
-fun ConfigTextField(label: String, value: String, onChange: (String) -> Unit) {
-    OutlinedTextField(
-        value = value,
-        onValueChange = onChange,
-        label = { Text(label) },
-        singleLine = true,
-        shape = RoundedCornerShape(14.dp),
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(62.dp)
-            .padding(vertical = 2.dp)
-    )
-}
+            NdSection("Endpoints") {
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    NdBoxInput("Listen IP", cfg.listenIp, { cfg = cfg.copy(listenIp = it) }, modifier = Modifier.weight(2f))
+                    NdBoxInput("Port", cfg.listenPort, { cfg = cfg.copy(listenPort = it) }, numeric = true, modifier = Modifier.weight(1f))
+                }
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    NdBoxInput("Server IP", cfg.serverIp, { cfg = cfg.copy(serverIp = it) }, modifier = Modifier.weight(2f))
+                    NdBoxInput("Port", cfg.serverPort, { cfg = cfg.copy(serverPort = it) }, numeric = true, modifier = Modifier.weight(1f))
+                }
+            }
 
-@Composable
-fun MultiTextField(label: String, value: String, onChange: (String) -> Unit) {
-    OutlinedTextField(
-        value = value,
-        onValueChange = onChange,
-        label = { Text(label) },
-        shape = RoundedCornerShape(14.dp),
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(108.dp)
-            .padding(vertical = 3.dp)
-    )
-}
-
-@Composable
-fun DeleteProfileIconButton(onDeleteConfirmed: () -> Unit) {
-    var showConfirm by remember { mutableStateOf(false) }
-
-    if (showConfirm) {
-        AlertDialog(
-            onDismissRequest = { showConfirm = false },
-            title = { Text("Delete profile?") },
-            text = { Text("This profile will be removed permanently.") },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        showConfirm = false
-                        onDeleteConfirmed()
+            NdSection("Advanced") {
+                NdBoxInput("User agent", cfg.userAgent, { cfg = cfg.copy(userAgent = it) }, mono = false, multiline = true, rows = 2)
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    NdBoxInput("Fake URLs", cfg.fakeUrls, { cfg = cfg.copy(fakeUrls = it) }, multiline = true, rows = 3, modifier = Modifier.weight(1f))
+                    NdBoxInput("Endpoints", cfg.endPoints, { cfg = cfg.copy(endPoints = it) }, multiline = true, rows = 3, modifier = Modifier.weight(1f))
+                }
+                Column {
+                    NdLabel("HTTP methods")
+                    Spacer(Modifier.height(10.dp))
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        listOf("GET", "POST", "PUT", "DELETE").forEach { m ->
+                            NdChip(m, selectedMethods.contains(m), { toggleMethod(m) }, technical = true)
+                        }
                     }
-                ) {
-                    Text("Delete", color = NipoRed)
                 }
-            },
-            dismissButton = {
-                TextButton(onClick = { showConfirm = false }) { Text("Cancel") }
             }
-        )
-    }
 
-    SmallMaterialIconButton(
-        imageVector = Icons.Filled.Delete,
-        contentColor = NipoRed,
-        borderColor = NipoRed,
-        onClick = { showConfirm = true }
-    )
-}
-
-@Composable
-fun ProfilePlayPauseButton(running: Boolean, onClick: () -> Unit) {
-    SmallMaterialIconButton(
-        imageVector = if (running) Icons.Filled.Pause else Icons.Filled.PlayArrow,
-        contentColor = if (running) NipoRed else NipoGreen,
-        borderColor = if (running) NipoRed else NipoGreen,
-        onClick = onClick
-    )
-}
-
-@Composable
-fun SmallMaterialIconButton(
-    imageVector: ImageVector,
-    contentColor: Color,
-    borderColor: Color,
-    onClick: () -> Unit
-) {
-    Box(
-        modifier = Modifier
-            .height(36.dp)
-            .width(42.dp)
-            .border(
-                width = 1.dp,
-                color = borderColor,
-                shape = RoundedCornerShape(18.dp)
-            )
-            .clickable { onClick() },
-        contentAlignment = Alignment.Center
-    ) {
-        Icon(
-            imageVector = imageVector,
-            contentDescription = null,
-            tint = contentColor
-        )
+            NdSection("Actions") {
+                if (connected) NdButton("Disconnect", onToggle, variant = NdButtonVariant.DESTRUCTIVE, icon = Icons.Filled.Pause, full = true)
+                else NdButton("Connect", onToggle, variant = NdButtonVariant.PRIMARY, icon = Icons.Filled.PlayArrow, full = true)
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    NdButton("Share", onCopyLink, variant = NdButtonVariant.SECONDARY, icon = Icons.Filled.Link, full = true, modifier = Modifier.weight(1f))
+                    NdButton("Delete", onDelete, variant = NdButtonVariant.GHOST, icon = Icons.Filled.Delete)
+                }
+            }
+            Spacer(Modifier.height(24.dp))
+        }
     }
 }
 
 @Composable
-fun GreenSaveButton(modifier: Modifier = Modifier, onClick: () -> Unit) {
-    Box(
-        modifier = modifier
-            .height(40.dp)
-            .clickable { onClick() }
-            .background(NipoGreen, RoundedCornerShape(20.dp))
-            .padding(horizontal = 12.dp, vertical = 10.dp),
-        contentAlignment = Alignment.Center
-    ) {
-        Text("Save", color = Color.White)
+private fun NdSection(title: String, content: @Composable androidx.compose.foundation.layout.ColumnScope.() -> Unit) {
+    Column(Modifier.padding(top = 22.dp)) {
+        NdLabel(title)
+        Spacer(Modifier.height(12.dp))
+        Column(verticalArrangement = Arrangement.spacedBy(12.dp), content = content)
+    }
+}
+
+// ── Dialogs ─────────────────────────────────────────────────────────
+@Composable
+private fun NdDialogScrim(onDismiss: () -> Unit, content: @Composable () -> Unit) {
+    val c = NdTheme.colors
+    Box(Modifier.fillMaxSize().background(androidx.compose.ui.graphics.Color(0xCC000000)).ndClick(onClick = onDismiss), contentAlignment = Alignment.Center) {
+        Box(Modifier.padding(20.dp).fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(c.surface).border(1.dp, c.borderVisible, RoundedCornerShape(16.dp)).ndClick {}.padding(24.dp)) {
+            content()
+        }
     }
 }
 
 @Composable
-fun SmallOutlinedButton(text: String, onClick: () -> Unit, modifier: Modifier = Modifier) {
-    OutlinedButton(
-        modifier = modifier.height(40.dp),
-        border = BorderStroke(1.dp, NipoDarkOrange),
-        onClick = onClick
-    ) {
-        Text(text, color = NipoDarkOrange)
+private fun NdImportDialog(value: String, onChange: (String) -> Unit, onDismiss: () -> Unit, onConfirm: () -> Unit) {
+    val c = NdTheme.colors
+    NdDialogScrim(onDismiss) {
+        Column {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                NdLabel("Import Profile", color = c.display, size = 13.sp)
+                NdButton("[ X ]", onDismiss, variant = NdButtonVariant.GHOST)
+            }
+            Spacer(Modifier.height(20.dp))
+            NdInput("Share link", value, onChange)
+            Spacer(Modifier.height(28.dp))
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End)) {
+                NdButton("Cancel", onDismiss, variant = NdButtonVariant.SECONDARY)
+                NdButton("Import", onConfirm, variant = NdButtonVariant.PRIMARY)
+            }
+        }
     }
 }
+
+@Composable
+private fun NdDeleteDialog(name: String, onDismiss: () -> Unit, onConfirm: () -> Unit) {
+    val c = NdTheme.colors
+    NdDialogScrim(onDismiss) {
+        Column {
+            NdStatus("Confirm Delete", color = c.accent, dot = NdDot.NONE)
+            Spacer(Modifier.height(12.dp))
+            Text("Profile “$name” will be permanently removed. This cannot be undone.", style = TextStyle(fontFamily = NothingFonts.Body, fontSize = 15.sp, lineHeight = 22.sp, color = c.primary))
+            Spacer(Modifier.height(28.dp))
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End)) {
+                NdButton("Cancel", onDismiss, variant = NdButtonVariant.SECONDARY)
+                NdButton("Delete", onConfirm, variant = NdButtonVariant.DESTRUCTIVE)
+            }
+        }
+    }
+}
+
+// ── Empty state ─────────────────────────────────────────────────────
+@Composable
+private fun NdEmptyState(onAdd: () -> Unit, onImport: () -> Unit) {
+    val c = NdTheme.colors
+    Column(Modifier.fillMaxSize().padding(32.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
+        Box(Modifier.size(120.dp).border(1.dp, c.borderVisible)) { NdDotGrid(Modifier.matchParentSize()) }
+        Spacer(Modifier.height(32.dp))
+        NdLabel("No Profiles", color = c.secondary, size = 13.sp)
+        Spacer(Modifier.height(12.dp))
+        Text("Create a profile or import a share link to start tunneling traffic.", style = TextStyle(fontFamily = NothingFonts.Body, fontSize = 14.sp, lineHeight = 21.sp, color = c.disabled, textAlign = androidx.compose.ui.text.style.TextAlign.Center))
+        Spacer(Modifier.height(32.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            NdButton("Import", onImport, variant = NdButtonVariant.SECONDARY, icon = Icons.Filled.FileDownload)
+            NdButton("New", onAdd, variant = NdButtonVariant.PRIMARY, icon = Icons.Filled.Add)
+        }
+    }
+}
+
