@@ -17,7 +17,11 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -195,7 +199,7 @@ fun NipoVpnApp(context: Context, importUri: Uri?, onStart: () -> Unit, onStop: (
 
     Box(Modifier.fillMaxSize().background(c.black)) {
         Column(Modifier.fillMaxSize()) {
-            Box(Modifier.weight(1f).fillMaxWidth()) {
+            Box(Modifier.weight(1f).fillMaxWidth().imePadding()) {
                 when {
                     screen == "config" && editing != null -> NdConfigScreen(
                         context = context,
@@ -306,7 +310,7 @@ private fun copyToClipboard(context: Context, label: String, text: String) {
 private fun NdTopBar(title: String, leading: (@Composable () -> Unit)? = null, trailing: (@Composable () -> Unit)? = null) {
     val c = NdTheme.colors
     Row(
-        Modifier.fillMaxWidth().windowInsetsPadding(WindowInsets.safeDrawing).padding(horizontal = 16.dp, vertical = 14.dp).height(60.dp),
+        Modifier.fillMaxWidth().windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal)).padding(horizontal = 16.dp, vertical = 14.dp).height(60.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
@@ -550,7 +554,7 @@ private fun NdConfigScreen(
             leading = { NdBackButton(Icons.AutoMirrored.Filled.ArrowBack, onBack) },
             trailing = { NdButton("Save", { save() }, variant = NdButtonVariant.PRIMARY) },
         )
-        Column(Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()).padding(start = 16.dp, end = 16.dp, bottom = 32.dp)) {
+        Column(Modifier.weight(1f).fillMaxWidth().navigationBarsPadding().verticalScroll(rememberScrollState()).padding(start = 16.dp, end = 16.dp, bottom = 32.dp)) {
 
             NdSection("Profile") {
                 NdBoxInput("Profile name", name, { name = it }, mono = false)
@@ -635,7 +639,7 @@ private fun NdSection(title: String, content: @Composable androidx.compose.found
 @Composable
 private fun NdDialogScrim(onDismiss: () -> Unit, content: @Composable () -> Unit) {
     val c = NdTheme.colors
-    Box(Modifier.fillMaxSize().background(androidx.compose.ui.graphics.Color(0xCC000000)).ndClick(onClick = onDismiss), contentAlignment = Alignment.Center) {
+    Box(Modifier.fillMaxSize().background(androidx.compose.ui.graphics.Color(0xCC000000)).ndClick(onClick = onDismiss).imePadding(), contentAlignment = Alignment.Center) {
         Box(Modifier.padding(20.dp).fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(c.surface).border(1.dp, c.borderVisible, RoundedCornerShape(16.dp)).ndClick {}.padding(24.dp)) {
             content()
         }
