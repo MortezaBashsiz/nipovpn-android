@@ -6,7 +6,9 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
+import android.widget.Toast
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.background
@@ -122,6 +124,11 @@ class MainActivity : ComponentActivity() {
     }
 }
 
+// A new profile starts with the server-specific identity fields blank, so the
+// user is forced to enter their own values (and we never seed a real server's
+// token/IP). Technical defaults (ports, timeouts, methods, UA) are kept.
+private fun newProfileConfig() = NipoConfig(token = "", serverIp = "", fakeUrls = "")
+
 private fun formatElapsed(seconds: Int): String {
     val m = (seconds / 60).toString().padStart(2, '0')
     val s = (seconds % 60).toString().padStart(2, '0')
@@ -136,7 +143,11 @@ fun NipoVpnApp(context: Context, importUri: Uri?, onStart: () -> Unit, onStop: (
     var screen by remember { mutableStateOf("list") }
     var editId by remember { mutableStateOf<String?>(null) }
     var dialog by remember { mutableStateOf<String?>(null) }
-    var importText by remember { mutableStateOf("nipovpn://") }
+    var importText by remember { mutableStateOf("") }
+    // A freshly-added profile that hasn't been saved yet. Held here (not in the
+    // persisted list) so backing out of the editor discards it instead of
+    // leaving an empty "New profile" on disk.
+    var draft by remember { mutableStateOf<NipoProfile?>(null) }
 
     val connectionState by ConnectionStatus.state.collectAsState()
     val activeProfile = profiles.firstOrNull { it.enabled }
@@ -174,8 +185,8 @@ fun NipoVpnApp(context: Context, importUri: Uri?, onStart: () -> Unit, onStop: (
     }
 
     fun addProfile() {
-        val np = NipoProfile(id = UUID.randomUUID().toString(), name = "New profile", enabled = false, config = NipoConfig())
-        persist(profiles + np)
+        val np = NipoProfile(id = UUID.randomUUID().toString(), name = "New profile", enabled = false, config = newProfileConfig())
+        draft = np            // not persisted until the user taps Save
         editId = np.id
         screen = "config"
     }
@@ -194,8 +205,30 @@ fun NipoVpnApp(context: Context, importUri: Uri?, onStart: () -> Unit, onStop: (
     }
 
     val logs by LogManager.logs.collectAsState()
-    val editing = profiles.firstOrNull { it.id == editId }
+    val editing = draft?.takeIf { it.id == editId } ?: profiles.firstOrNull { it.id == editId }
     val showNav = screen == "list"
+
+    // System back / back-gesture handling (issue #17 ②): navigate within the
+    // app instead of exiting. Order matters — close an open dialog first, then
+    // step back out of the editor, then off the Logs tab; only the Profiles
+    // root falls through to a double-press-to-exit.
+    val activity = context as? android.app.Activity
+    var lastBackMs by remember { mutableStateOf(0L) }
+    BackHandler {
+        when {
+            dialog != null -> dialog = null
+            screen == "config" -> { draft = null; screen = "list" }
+            tab == "logs" -> tab = "profiles"
+            else -> {
+                val now = System.currentTimeMillis()
+                if (now - lastBackMs < 2000) activity?.finish()
+                else {
+                    lastBackMs = now
+                    Toast.makeText(context, "Press back again to exit", Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
+    }
 
     Box(Modifier.fillMaxSize().background(c.black)) {
         Column(Modifier.fillMaxSize()) {
@@ -205,11 +238,14 @@ fun NipoVpnApp(context: Context, importUri: Uri?, onStart: () -> Unit, onStop: (
                         context = context,
                         profile = editing,
                         connected = connected && editing.id == activeProfile?.id,
-                        onBack = { screen = "list" },
+                        onBack = { draft = null; screen = "list" },
                         onToggle = { toggle(editing.id) },
                         onSave = { updated ->
-                            persist(profiles.map { if (it.id == updated.id) updated else it })
+                            if (draft?.id == updated.id) persist(profiles + updated)
+                            else persist(profiles.map { if (it.id == updated.id) updated else it })
+                            draft = null
                             screen = "list"
+                            Toast.makeText(context, "\"${updated.name}\" saved", Toast.LENGTH_SHORT).show()
                             LogManager.append("Saved profile: ${updated.name}")
                         },
                         onDelete = { dialog = "delete" },
@@ -221,7 +257,7 @@ fun NipoVpnApp(context: Context, importUri: Uri?, onStart: () -> Unit, onStop: (
                     )
                     tab == "profiles" && profiles.isEmpty() -> NdEmptyState(
                         onAdd = { addProfile() },
-                        onImport = { dialog = "import" },
+                        onImport = { importText = ""; dialog = "import" },
                     )
                     tab == "profiles" -> NdProfilesScreen(
                         profiles = profiles,
@@ -230,9 +266,9 @@ fun NipoVpnApp(context: Context, importUri: Uri?, onStart: () -> Unit, onStop: (
                         elapsed = formatElapsed(elapsedSeconds),
                         pingMs = pingMs,
                         onToggle = { toggle(it) },
-                        onOpen = { editId = it; screen = "config" },
+                        onOpen = { draft = null; editId = it; screen = "config" },
                         onAdd = { addProfile() },
-                        onImport = { dialog = "import" },
+                        onImport = { importText = ""; dialog = "import" },
                     )
                     else -> NdLogsScreen(
                         context = context,
@@ -279,7 +315,7 @@ fun NipoVpnApp(context: Context, importUri: Uri?, onStart: () -> Unit, onStop: (
                         LogManager.append("Import failed: ${e.message}")
                     }
                     dialog = null
-                    importText = "nipovpn://"
+                    importText = ""
                 },
             )
         }
@@ -291,6 +327,7 @@ fun NipoVpnApp(context: Context, importUri: Uri?, onStart: () -> Unit, onStop: (
                     val wasActive = editing.id == activeProfile?.id
                     persist(profiles.filter { it.id != editing.id })
                     if (wasActive) onStop()
+                    draft = null
                     dialog = null
                     screen = "list"
                     LogManager.append("Deleted profile: ${editing.name}")
@@ -558,7 +595,7 @@ private fun NdConfigScreen(
 
             NdSection("Profile") {
                 NdBoxInput("Profile name", name, { name = it }, mono = false)
-                NdBoxInput("Token", cfg.token, { cfg = cfg.copy(token = it) }, trailing = {
+                NdBoxInput("Token", cfg.token, { cfg = cfg.copy(token = it) }, placeholder = "your-server-token", trailing = {
                     NdIconButton(Icons.Filled.ContentCopy, { copyToClipboard(context, "Token", cfg.token) }, size = 28.dp)
                 })
             }
@@ -591,7 +628,7 @@ private fun NdConfigScreen(
                     NdBoxInput("Port", cfg.listenPort, { cfg = cfg.copy(listenPort = it) }, numeric = true, modifier = Modifier.weight(1f))
                 }
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    NdBoxInput("Server IP", cfg.serverIp, { cfg = cfg.copy(serverIp = it) }, modifier = Modifier.weight(2f))
+                    NdBoxInput("Server IP", cfg.serverIp, { cfg = cfg.copy(serverIp = it) }, placeholder = "1.2.3.4", modifier = Modifier.weight(2f))
                     NdBoxInput("Port", cfg.serverPort, { cfg = cfg.copy(serverPort = it) }, numeric = true, modifier = Modifier.weight(1f))
                 }
             }
@@ -599,7 +636,7 @@ private fun NdConfigScreen(
             NdSection("Advanced") {
                 NdBoxInput("User agent", cfg.userAgent, { cfg = cfg.copy(userAgent = it) }, mono = false, multiline = true, rows = 2)
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    NdBoxInput("Fake URLs", cfg.fakeUrls, { cfg = cfg.copy(fakeUrls = it) }, multiline = true, rows = 3, modifier = Modifier.weight(1f))
+                    NdBoxInput("Fake URLs", cfg.fakeUrls, { cfg = cfg.copy(fakeUrls = it) }, multiline = true, rows = 3, placeholder = "www.google.com", modifier = Modifier.weight(1f))
                     NdBoxInput("Endpoints", cfg.endPoints, { cfg = cfg.copy(endPoints = it) }, multiline = true, rows = 3, modifier = Modifier.weight(1f))
                 }
                 Column {
@@ -656,7 +693,7 @@ private fun NdImportDialog(value: String, onChange: (String) -> Unit, onDismiss:
                 NdButton("[ X ]", onDismiss, variant = NdButtonVariant.GHOST)
             }
             Spacer(Modifier.height(20.dp))
-            NdInput("Share link", value, onChange)
+            NdInput("Share link", value, onChange, placeholder = "nipovpn://…")
             Spacer(Modifier.height(28.dp))
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End)) {
                 NdButton("Cancel", onDismiss, variant = NdButtonVariant.SECONDARY)
