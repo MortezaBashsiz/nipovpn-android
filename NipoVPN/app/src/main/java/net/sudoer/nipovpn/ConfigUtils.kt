@@ -27,7 +27,8 @@ data class NipoConfig(
     val serverIp: String = "46.225.50.122",
     val serverPort: String = "443",
     val httpVersion: String = "1.1",
-    val userAgent: String = "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:132.0) Gecko/20100101 Firefox/132.0"
+    val userAgent: String = "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:132.0) Gecko/20100101 Firefox/132.0",
+    val bufferSize: String = "65536"
 )
 
 fun NipoConfig.normalized(): NipoConfig {
@@ -57,12 +58,16 @@ fun NipoConfig.normalized(): NipoConfig {
     val normalizedTunnelEnable = if (connectionReuse) false else tunnelEnable
     val normalizedConnectionReuse = if (normalizedTunnelEnable) false else connectionReuse
 
+    val normalizedBufferSize = bufferSize.trim().toIntOrNull()
+        ?.coerceIn(1, 65536)?.toString() ?: "65536"
+
     return copy(
         protocol = normalizedProtocol,
         methods = normalizedMethods,
         logLevel = normalizedLogLevel,
         tunnelEnable = normalizedTunnelEnable,
-        connectionReuse = normalizedConnectionReuse
+        connectionReuse = normalizedConnectionReuse,
+        bufferSize = normalizedBufferSize
     )
 }
 
@@ -105,6 +110,7 @@ ${yamlList(finalCfg.endPoints)}
  tlsCertFile: "${finalCfg.tlsCertFile}"
  tlsKeyFile: "${finalCfg.tlsKeyFile}"
  tlsCaFile: "${finalCfg.tlsCaFile}"
+ bufferSize: ${finalCfg.bufferSize}
 log:
  logLevel: "${finalCfg.logLevel}"
  logFile: "${logFile.absolutePath}"
@@ -151,6 +157,7 @@ fun exportNipoProfileToLink(profile: NipoProfile): String {
         .put("serverPort", cfg.serverPort)
         .put("httpVersion", cfg.httpVersion)
         .put("userAgent", cfg.userAgent)
+        .put("bufferSize", cfg.bufferSize)
 
     val obj = JSONObject()
         .put("name", profile.name)
@@ -199,7 +206,8 @@ fun importNipoProfileFromLink(text: String): NipoProfile {
         serverIp = cfgObj.optString("serverIp", defaultCfg.serverIp),
         serverPort = cfgObj.optString("serverPort", defaultCfg.serverPort),
         httpVersion = cfgObj.optString("httpVersion", defaultCfg.httpVersion),
-        userAgent = cfgObj.optString("userAgent", defaultCfg.userAgent)
+        userAgent = cfgObj.optString("userAgent", defaultCfg.userAgent),
+        bufferSize = cfgObj.optString("bufferSize", defaultCfg.bufferSize)
     ).normalized()
 
     return NipoProfile(

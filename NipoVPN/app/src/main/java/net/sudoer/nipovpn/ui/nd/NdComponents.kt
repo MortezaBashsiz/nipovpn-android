@@ -221,6 +221,7 @@ fun NdInput(
     mono: Boolean = true,
     multiline: Boolean = false,
     numeric: Boolean = false,
+    placeholder: String? = null,
     trailing: (@Composable () -> Unit)? = null,
 ) {
     val c = NdTheme.colors
@@ -253,6 +254,19 @@ fun NdInput(
                     keyboardType = if (numeric) KeyboardType.Number else KeyboardType.Text
                 ),
                 visualTransformation = VisualTransformation.None,
+                decorationBox = { inner ->
+                    if (value.isEmpty() && placeholder != null) {
+                        Text(
+                            placeholder,
+                            style = TextStyle(
+                                fontFamily = if (mono) NothingFonts.Mono else NothingFonts.Body,
+                                fontSize = 15.sp,
+                                color = c.disabled,
+                            ),
+                        )
+                    }
+                    inner()
+                },
             )
             if (trailing != null) trailing()
         }
@@ -422,6 +436,7 @@ fun NdBoxInput(
     multiline: Boolean = false,
     numeric: Boolean = false,
     rows: Int = 3,
+    placeholder: String? = null,
     trailing: (@Composable () -> Unit)? = null,
 ) {
     val c = NdTheme.colors
@@ -448,6 +463,15 @@ fun NdBoxInput(
                 minLines = if (multiline) rows else 1,
                 cursorBrush = SolidColor(c.primary),
                 keyboardOptions = KeyboardOptions(keyboardType = if (numeric) KeyboardType.Number else KeyboardType.Text),
+                decorationBox = { inner ->
+                    if (value.isEmpty() && placeholder != null) {
+                        Text(
+                            placeholder,
+                            style = TextStyle(fontFamily = if (mono) NothingFonts.Mono else NothingFonts.Body, fontSize = 15.sp, lineHeight = 20.sp, color = c.disabled),
+                        )
+                    }
+                    inner()
+                },
             )
             if (trailing != null) trailing()
         }

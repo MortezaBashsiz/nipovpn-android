@@ -11,8 +11,8 @@ android {
         applicationId = "net.sudoer.nipovpn"
         minSdk = 24
         targetSdk = 36
-        versionCode = 1155
-        versionName = "1.1.55"
+        versionCode = 11581
+        versionName = "1.1.58.1"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 

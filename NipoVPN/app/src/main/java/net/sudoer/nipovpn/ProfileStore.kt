@@ -53,7 +53,8 @@ fun loadProfiles(context: Context): List<NipoProfile> {
                 serverIp = cfgObj.optString("serverIp", defaultCfg.serverIp),
                 serverPort = cfgObj.optString("serverPort", defaultCfg.serverPort),
                 httpVersion = cfgObj.optString("httpVersion", defaultCfg.httpVersion),
-                userAgent = cfgObj.optString("userAgent", defaultCfg.userAgent)
+                userAgent = cfgObj.optString("userAgent", defaultCfg.userAgent),
+                bufferSize = cfgObj.optString("bufferSize", defaultCfg.bufferSize)
             ).normalized()
 
             result.add(
@@ -100,6 +101,7 @@ fun saveProfiles(context: Context, profiles: List<NipoProfile>) {
             .put("serverPort", cfg.serverPort)
             .put("httpVersion", cfg.httpVersion)
             .put("userAgent", cfg.userAgent)
+            .put("bufferSize", cfg.bufferSize)
 
         val obj = JSONObject()
             .put("id", profile.id)
