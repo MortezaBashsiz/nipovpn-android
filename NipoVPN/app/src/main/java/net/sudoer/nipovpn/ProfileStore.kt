@@ -119,3 +119,21 @@ fun loadActiveProfile(context: Context): NipoProfile? {
     val profiles = loadProfiles(context)
     return profiles.firstOrNull { profile -> profile.enabled }
 }
+
+// ── Selected-profile persistence ────────────────────────────────────
+// The list selection (which profile the Connect button acts on) is UI
+// state, but it must survive the app being closed and reopened. Persist
+// it to a small file in filesDir, mirroring the profiles.json approach.
+private fun selectedIdFile(context: Context): File {
+    return File(context.filesDir, "selected_profile_id")
+}
+
+fun loadSelectedId(context: Context): String? {
+    val file = selectedIdFile(context)
+    return if (file.exists()) file.readText().trim().ifBlank { null } else null
+}
+
+fun saveSelectedId(context: Context, id: String?) {
+    val file = selectedIdFile(context)
+    if (id.isNullOrBlank()) file.delete() else file.writeText(id)
+}

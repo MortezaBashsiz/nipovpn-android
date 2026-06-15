@@ -151,7 +151,7 @@ fun NipoVpnApp(context: Context, importUri: Uri?, onStart: () -> Unit, onStop: (
     // The profile the user has picked to act on (left indicator on the list).
     // The hero Connect button connects this one. Null → fall back to the
     // running profile, else the first profile.
-    var selectedId by remember { mutableStateOf<String?>(null) }
+    var selectedId by remember { mutableStateOf(loadSelectedId(context)) }
 
     val connectionState by ConnectionStatus.state.collectAsState()
     val activeProfile = profiles.firstOrNull { it.enabled }
@@ -160,6 +160,8 @@ fun NipoVpnApp(context: Context, importUri: Uri?, onStart: () -> Unit, onStop: (
         ?: activeProfile?.id ?: profiles.firstOrNull()?.id
 
     fun persist(updated: List<NipoProfile>) { profiles = updated; saveProfiles(context, updated) }
+    // Update + persist the selection so it survives app restarts.
+    fun select(id: String) { selectedId = id; saveSelectedId(context, id) }
 
     LaunchedEffect(importUri) {
         importUri?.toString()?.let { link ->
@@ -245,7 +247,7 @@ fun NipoVpnApp(context: Context, importUri: Uri?, onStart: () -> Unit, onStop: (
                         profile = editing,
                         connected = connected && editing.id == activeProfile?.id,
                         onBack = { draft = null; screen = "list" },
-                        onToggle = { selectedId = editing.id; toggle(editing.id) },
+                        onToggle = { select(editing.id); toggle(editing.id) },
                         onSave = { updated ->
                             if (draft?.id == updated.id) persist(profiles + updated)
                             else persist(profiles.map { if (it.id == updated.id) updated else it })
@@ -272,7 +274,7 @@ fun NipoVpnApp(context: Context, importUri: Uri?, onStart: () -> Unit, onStop: (
                         connected = connected,
                         elapsed = formatElapsed(elapsedSeconds),
                         pingMs = pingMs,
-                        onSelect = { selectedId = it },
+                        onSelect = { select(it) },
                         onConnect = { resolvedSelectedId?.let { id -> toggle(id) } },
                         onOpen = { draft = null; editId = it; screen = "config" },
                         onAdd = { addProfile() },
