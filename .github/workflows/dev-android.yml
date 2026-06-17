@@ -1,10 +1,13 @@
 name: Android Pre-Release
 
 on:
+  workflow_dispatch:
   push:
     branches:
       - dev
-  workflow_dispatch:
+    paths:
+      - 'NipoVPN'
+      - '.github/workflows/dev-android.yml'
 
 permissions:
   contents: write
