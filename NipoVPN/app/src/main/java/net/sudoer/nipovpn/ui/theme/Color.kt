@@ -1,4 +1,4 @@
-package net.sudoer.nipovpn.ui.theme
+package net.sudoer.nipo.ui.theme
 
 import androidx.compose.ui.graphics.Color
 

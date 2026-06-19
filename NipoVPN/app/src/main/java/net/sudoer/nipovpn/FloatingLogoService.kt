@@ -1,4 +1,4 @@
-package net.sudoer.nipovpn
+package net.sudoer.nipo
 
 import android.app.Service
 import android.content.Intent

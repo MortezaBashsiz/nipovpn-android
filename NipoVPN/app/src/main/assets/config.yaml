@@ -29,7 +29,7 @@ general:
 
 log:
   logLevel: "DEBUG"
-  logFile: "/data/user/0/net.sudoer.nipovpn/files/logs/nipovpn.log"
+  logFile: "/data/user/0/net.sudoer.nipo/files/logs/nipovpn.log"
 
 server:
   threads: 8

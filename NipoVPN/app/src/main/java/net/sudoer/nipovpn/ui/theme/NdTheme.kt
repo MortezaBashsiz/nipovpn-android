@@ -1,4 +1,4 @@
-package net.sudoer.nipovpn.ui.theme
+package net.sudoer.nipo.ui.theme
 
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
@@ -12,7 +12,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
-import net.sudoer.nipovpn.R
+import net.sudoer.nipo.R
 
 /**
  * Nothing Design System — token set, mirrored from the design bundle's

@@ -1,4 +1,4 @@
-package net.sudoer.nipovpn.ui.nd
+package net.sudoer.nipo.ui.nd
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.border
@@ -45,9 +45,9 @@ import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
-import net.sudoer.nipovpn.ui.theme.NdColors
-import net.sudoer.nipovpn.ui.theme.NdTheme
-import net.sudoer.nipovpn.ui.theme.NothingFonts
+import net.sudoer.nipo.ui.theme.NdColors
+import net.sudoer.nipo.ui.theme.NdTheme
+import net.sudoer.nipo.ui.theme.NothingFonts
 
 /** Flat, ripple-less clickable — the Nothing interaction model (no scale/shadow). */
 fun Modifier.ndClick(enabled: Boolean = true, onClick: () -> Unit): Modifier = composed {

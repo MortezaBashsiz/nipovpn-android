@@ -1,4 +1,4 @@
-package net.sudoer.nipovpn
+package net.sudoer.nipo
 
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext

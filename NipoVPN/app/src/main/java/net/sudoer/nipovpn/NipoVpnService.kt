@@ -1,4 +1,4 @@
-package net.sudoer.nipovpn
+package net.sudoer.nipo
 
 import android.app.Notification
 import android.app.NotificationChannel
