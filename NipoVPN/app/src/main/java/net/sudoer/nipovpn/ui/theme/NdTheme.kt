@@ -12,7 +12,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
-import net.sudoer.nipo.R
+import net.sudoer.nipovpn.R
 
 /**
  * Nothing Design System — token set, mirrored from the design bundle's
