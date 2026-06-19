@@ -15,7 +15,7 @@ NipoVPN is a proxy/VPN-style project designed to hide real HTTP/S traffic inside
 * Jetpack Compose UI
 * Uses the native NipoVPN core
 * Supports Android 7.0+ (`minSdk 24`)
-* Package name: `net.sudoer.nipovpn`
+* Package name: `net.sudoer.nipo`
 
 ## Project Structure
 

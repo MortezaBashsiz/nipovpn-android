@@ -20,8 +20,8 @@ android {
         applicationId = "net.sudoer.nipo"
         minSdk = 24
         targetSdk = 36
-        versionCode = 11592
-        versionName = "1.1.59.2"
+        versionCode = 11593
+        versionName = "1.1.59.3"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
