@@ -44,6 +44,7 @@ import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CleaningServices
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
@@ -80,7 +81,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import net.sudoer.nipo.ui.nd.NdBackButton
 import net.sudoer.nipo.ui.nd.NdBottomNav
 import net.sudoer.nipo.ui.nd.NdBoxInput
 import net.sudoer.nipo.ui.nd.NdButton
@@ -89,6 +89,7 @@ import net.sudoer.nipo.ui.nd.NdChip
 import net.sudoer.nipo.ui.nd.NdDivider
 import net.sudoer.nipo.ui.nd.NdDot
 import net.sudoer.nipo.ui.nd.NdDotGrid
+import net.sudoer.nipo.ui.nd.NdGrid
 import net.sudoer.nipo.ui.nd.NdIconButton
 import net.sudoer.nipo.ui.nd.NdInput
 import net.sudoer.nipo.ui.nd.NdLabel
@@ -99,6 +100,8 @@ import net.sudoer.nipo.ui.nd.NdSegmented
 import net.sudoer.nipo.ui.nd.NdStatus
 import net.sudoer.nipo.ui.nd.NdToggleBox
 import net.sudoer.nipo.ui.nd.ndClick
+import net.sudoer.nipo.ui.nd.ndSelect
+import androidx.compose.ui.semantics.Role
 import net.sudoer.nipo.ui.theme.NdColors
 import net.sudoer.nipo.ui.theme.NdTheme
 import net.sudoer.nipo.ui.theme.NothingFonts
@@ -539,7 +542,7 @@ private fun NdTopBar(title: String, leading: (@Composable () -> Unit)? = null, t
             overflow = TextOverflow.Ellipsis,
             style = TextStyle(fontFamily = NothingFonts.Mono, fontSize = 15.sp, letterSpacing = 0.12.em, color = c.display),
         )
-        if (trailing != null) Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) { trailing() }
+        if (trailing != null) Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) { trailing() }
     }
 }
 
@@ -581,7 +584,7 @@ private fun NdConnectionHero(
                 Text(
                     if (connected) (profile?.name ?: "") else "No active tunnel",
                     modifier = Modifier.weight(1f).alignByBaseline(),
-                    maxLines = 1,
+                    maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
                     style = TextStyle(fontFamily = NothingFonts.Body, fontWeight = FontWeight.Medium, fontSize = 15.sp, color = hc.primary),
                 )
@@ -633,7 +636,7 @@ private fun NdProfileRow(
         Box(Modifier.fillMaxHeight().width(2.dp).background(indicator))
         // Tapping the row body selects this profile (the hero Connect then
         // acts on it). Editing is via the chevron on the right.
-        Row(Modifier.weight(1f).fillMaxHeight().ndClick(onClick = onSelect).padding(start = 14.dp, end = 8.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+        Row(Modifier.weight(1f).fillMaxHeight().ndSelect(selected, Role.RadioButton, onSelect).padding(start = 14.dp, end = 8.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
             Box(Modifier.size(8.dp).background(indicator).then(if (marked) Modifier else Modifier.border(1.dp, c.borderVisible)))
             Column(Modifier.weight(1f)) {
                 Text(profile.name, maxLines = 1, overflow = TextOverflow.Ellipsis, style = TextStyle(fontFamily = NothingFonts.Body, fontWeight = FontWeight.Medium, fontSize = 16.sp, color = c.primary))
@@ -644,9 +647,7 @@ private fun NdProfileRow(
                 )
             }
         }
-        Box(Modifier.size(44.dp).clip(RoundedCornerShape(999.dp)).ndClick(onClick = onOpen), contentAlignment = Alignment.Center) {
-            Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, null, tint = c.secondary, modifier = Modifier.size(20.dp))
-        }
+        NdIconButton(Icons.AutoMirrored.Filled.KeyboardArrowRight, "Edit ${profile.name}", onOpen, outlined = false)
     }
 }
 
@@ -681,8 +682,8 @@ private fun NdProfilesScreen(
                 }
             },
             trailing = {
-                NdIconButton(Icons.Filled.FileDownload, onImport)
-                NdIconButton(Icons.Filled.Add, onAdd)
+                NdIconButton(Icons.Filled.FileDownload, "Import profile", onImport)
+                NdIconButton(Icons.Filled.Add, "Add profile", onAdd)
             },
         )
         Column(Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()).padding(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 24.dp)) {
@@ -729,8 +730,8 @@ private fun NdSubsScreen(
         NdTopBar(
             title = "Subscriptions",
             trailing = {
-                NdIconButton(Icons.Filled.FileDownload, onImport)
-                NdIconButton(Icons.Filled.Add, onAdd)
+                NdIconButton(Icons.Filled.FileDownload, "Import subscription", onImport)
+                NdIconButton(Icons.Filled.Add, "Add subscription", onAdd)
             },
         )
         Column(Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 4.dp)) {
@@ -757,13 +758,13 @@ private fun NdSubRow(sub: NipoSubscription, onEdit: () -> Unit, onRefresh: () ->
             Column(Modifier.weight(1f)) {
                 Text(sub.name, maxLines = 1, overflow = TextOverflow.Ellipsis, style = TextStyle(fontFamily = NothingFonts.Body, fontWeight = FontWeight.Medium, fontSize = 16.sp, color = c.primary))
                 Spacer(Modifier.height(3.dp))
-                Text(sub.link, maxLines = 1, overflow = TextOverflow.Ellipsis, style = TextStyle(fontFamily = NothingFonts.Mono, fontSize = 12.sp, color = c.disabled))
+                Text(sub.link, maxLines = 1, overflow = TextOverflow.Ellipsis, style = TextStyle(fontFamily = NothingFonts.Mono, fontSize = 12.sp, color = c.secondary))
                 Spacer(Modifier.height(3.dp))
                 Text(status, style = TextStyle(fontFamily = NothingFonts.Mono, fontSize = 11.sp, color = statusColor))
             }
-            NdIconButton(Icons.Filled.Refresh, onRefresh, size = 30.dp)
-            NdIconButton(Icons.Filled.Edit, onEdit, size = 30.dp)
-            NdIconButton(Icons.Filled.Delete, onDelete, size = 30.dp)
+            NdIconButton(Icons.Filled.Refresh, "Refresh ${sub.name}", onRefresh, outlined = false)
+            NdIconButton(Icons.Filled.Edit, "Edit ${sub.name}", onEdit, outlined = false)
+            NdIconButton(Icons.Filled.Delete, "Delete ${sub.name}", onDelete, outlined = false)
         }
     }
 }
@@ -797,8 +798,8 @@ private fun NdLogsScreen(
         NdTopBar(
             title = "Logs",
             trailing = {
-                NdIconButton(Icons.Filled.CleaningServices, onClear)
-                NdIconButton(Icons.Filled.ContentCopy, onCopy)
+                NdIconButton(Icons.Filled.CleaningServices, "Clear logs", onClear)
+                NdIconButton(Icons.Filled.ContentCopy, "Copy logs", onCopy)
             },
         )
         Box(Modifier.padding(horizontal = 16.dp).padding(bottom = 12.dp)) {
@@ -857,8 +858,8 @@ private fun NdConfigScreen(
     Column(Modifier.fillMaxSize()) {
         NdTopBar(
             title = "Edit Profile",
-            leading = { NdBackButton(Icons.AutoMirrored.Filled.ArrowBack, onBack) },
-            trailing = { NdIconButton(Icons.Filled.Link, onCopyLink) },
+            leading = { NdIconButton(Icons.AutoMirrored.Filled.ArrowBack, "Back", onBack) },
+            trailing = { NdIconButton(Icons.Filled.Link, "Copy share link", onCopyLink) },
         )
         Column(Modifier.weight(1f).fillMaxWidth().navigationBarsPadding().verticalScroll(rememberScrollState()).padding(start = 16.dp, end = 16.dp, bottom = 32.dp)) {
 
@@ -868,7 +869,7 @@ private fun NdConfigScreen(
                     Text(nameError!!, style = TextStyle(fontFamily = NothingFonts.Body, fontSize = 13.sp, color = c.accent))
                 }
                 NdBoxInput("Token", cfg.token, { cfg = cfg.copy(token = it) }, placeholder = "your-server-token", trailing = {
-                    NdIconButton(Icons.Filled.ContentCopy, { copyToClipboard(context, "Token", cfg.token) }, size = 28.dp)
+                    NdIconButton(Icons.Filled.ContentCopy, "Copy token", { copyToClipboard(context, "Token", cfg.token) }, outlined = false, size = 28.dp)
                 })
             }
 
@@ -879,20 +880,27 @@ private fun NdConfigScreen(
                     onChange = { cfg = cfg.copy(protocol = it).normalized() },
                     full = true,
                 )
-                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    NdBoxInput("Buffer · B", cfg.bufferSize, { cfg = cfg.copy(bufferSize = it) }, numeric = true, placeholder = "65536", modifier = Modifier.weight(1f))
-                    NdBoxInput("Timeout · s", cfg.timeout, { cfg = cfg.copy(timeout = it) }, numeric = true, modifier = Modifier.weight(1f))
-                    NdBoxInput("Pull", cfg.pullTimeout, { cfg = cfg.copy(pullTimeout = it) }, numeric = true, modifier = Modifier.weight(1f))
-                }
-                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    NdToggleBox("Tunnel", cfg.tunnelEnable, {
-                        cfg = cfg.copy(tunnelEnable = it, connectionReuse = if (it) false else cfg.connectionReuse).normalized()
-                    }, Modifier.weight(1f))
-                    NdToggleBox("Reuse", cfg.connectionReuse, {
-                        cfg = cfg.copy(connectionReuse = it, tunnelEnable = if (it) false else cfg.tunnelEnable).normalized()
-                    }, Modifier.weight(1f))
-                    NdToggleBox("TLS", cfg.tlsEnable, { cfg = cfg.copy(tlsEnable = it).normalized() }, Modifier.weight(1f))
-                }
+                NdGrid(
+                    3,
+                    { m -> NdBoxInput("Buffer · B", cfg.bufferSize, { cfg = cfg.copy(bufferSize = it) }, numeric = true, placeholder = "65536", modifier = m) },
+                    { m -> NdBoxInput("Timeout · s", cfg.timeout, { cfg = cfg.copy(timeout = it) }, numeric = true, modifier = m) },
+                    { m -> NdBoxInput("Pull · s", cfg.pullTimeout, { cfg = cfg.copy(pullTimeout = it) }, numeric = true, modifier = m) },
+                )
+                NdGrid(
+                    4,
+                    { m ->
+                        NdToggleBox("Tunnel", cfg.tunnelEnable, {
+                            cfg = cfg.copy(tunnelEnable = it, connectionReuse = if (it) false else cfg.connectionReuse).normalized()
+                        }, m)
+                    },
+                    { m ->
+                        NdToggleBox("Reuse", cfg.connectionReuse, {
+                            cfg = cfg.copy(connectionReuse = it, tunnelEnable = if (it) false else cfg.tunnelEnable).normalized()
+                        }, m)
+                    },
+                    { m -> NdToggleBox("TLS", cfg.tlsEnable, { cfg = cfg.copy(tlsEnable = it).normalized() }, m) },
+                    { m -> NdToggleBox("AES", cfg.aesEnable, { cfg = cfg.copy(aesEnable = it).normalized() }, m) },
+                )
             }
 
             NdSection("Endpoints") {
@@ -908,10 +916,11 @@ private fun NdConfigScreen(
 
             NdSection("Advanced") {
                 NdBoxInput("User agent", cfg.userAgent, { cfg = cfg.copy(userAgent = it) }, mono = false, multiline = true, rows = 2)
-                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    NdBoxInput("Fake URLs", cfg.fakeUrls, { cfg = cfg.copy(fakeUrls = it) }, multiline = true, rows = 3, placeholder = "www.google.com", modifier = Modifier.weight(1f))
-                    NdBoxInput("Endpoints", cfg.endPoints, { cfg = cfg.copy(endPoints = it) }, multiline = true, rows = 3, modifier = Modifier.weight(1f))
-                }
+                NdGrid(
+                    2,
+                    { m -> NdBoxInput("Fake URLs", cfg.fakeUrls, { cfg = cfg.copy(fakeUrls = it) }, multiline = true, rows = 3, placeholder = "www.google.com", modifier = m) },
+                    { m -> NdBoxInput("Endpoints", cfg.endPoints, { cfg = cfg.copy(endPoints = it) }, multiline = true, rows = 3, modifier = m) },
+                )
                 Column {
                     NdLabel("HTTP methods")
                     Spacer(Modifier.height(10.dp))
@@ -926,9 +935,10 @@ private fun NdConfigScreen(
             NdSection("Actions") {
                 if (connected) NdButton("Disconnect", onToggle, variant = NdButtonVariant.DESTRUCTIVE, icon = Icons.Filled.Pause, full = true)
                 else NdButton("Connect", onToggle, variant = NdButtonVariant.PRIMARY, icon = Icons.Filled.PlayArrow, full = true)
+                // Same size, different style (HIG buttons › Style): Save is the prominent one.
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    NdButton("Save", { save() }, variant = NdButtonVariant.PRIMARY, full = true, modifier = Modifier.weight(1f))
-                    NdButton("Delete", onDelete, variant = NdButtonVariant.GHOST, icon = Icons.Filled.Delete)
+                    NdButton("Save", { save() }, variant = NdButtonVariant.PRIMARY, modifier = Modifier.weight(1f))
+                    NdButton("Delete", onDelete, variant = NdButtonVariant.DESTRUCTIVE, icon = Icons.Filled.Delete, modifier = Modifier.weight(1f))
                 }
             }
             Spacer(Modifier.height(24.dp))
@@ -961,7 +971,7 @@ private fun NdDialogHeader(title: String, onDismiss: () -> Unit) {
     val c = NdTheme.colors
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
         NdLabel(title, color = c.display, size = 13.sp)
-        NdButton("[ X ]", onDismiss, variant = NdButtonVariant.GHOST)
+        NdIconButton(Icons.Filled.Close, "Close", onDismiss)
     }
 }
 
@@ -982,9 +992,9 @@ private fun NdImportDialog(
             Spacer(Modifier.height(20.dp))
             NdInput(label, value, onChange, multiline = multiline, placeholder = placeholder)
             Spacer(Modifier.height(28.dp))
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End)) {
-                NdButton("Cancel", onDismiss, variant = NdButtonVariant.SECONDARY)
-                NdButton("Import", onConfirm, variant = NdButtonVariant.PRIMARY)
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                NdButton("Cancel", onDismiss, variant = NdButtonVariant.SECONDARY, modifier = Modifier.weight(1f))
+                NdButton("Import", onConfirm, variant = NdButtonVariant.PRIMARY, modifier = Modifier.weight(1f))
             }
         }
     }
@@ -999,9 +1009,9 @@ private fun NdDeleteDialog(name: String, onDismiss: () -> Unit, onConfirm: () ->
             Spacer(Modifier.height(12.dp))
             Text("Profile “$name” will be permanently removed. This cannot be undone.", style = TextStyle(fontFamily = NothingFonts.Body, fontSize = 15.sp, lineHeight = 22.sp, color = c.primary))
             Spacer(Modifier.height(28.dp))
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End)) {
-                NdButton("Cancel", onDismiss, variant = NdButtonVariant.SECONDARY)
-                NdButton("Delete", onConfirm, variant = NdButtonVariant.DESTRUCTIVE)
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                NdButton("Cancel", onDismiss, variant = NdButtonVariant.SECONDARY, modifier = Modifier.weight(1f))
+                NdButton("Delete", onConfirm, variant = NdButtonVariant.DESTRUCTIVE, modifier = Modifier.weight(1f))
             }
         }
     }
@@ -1031,9 +1041,9 @@ private fun NdSubFormDialog(
                 Text(error, style = TextStyle(fontFamily = NothingFonts.Body, fontSize = 13.sp, color = c.accent))
             }
             Spacer(Modifier.height(28.dp))
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End)) {
-                NdButton("Cancel", onDismiss, variant = NdButtonVariant.SECONDARY)
-                NdButton("Save", onConfirm, variant = NdButtonVariant.PRIMARY)
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                NdButton("Cancel", onDismiss, variant = NdButtonVariant.SECONDARY, modifier = Modifier.weight(1f))
+                NdButton("Save", onConfirm, variant = NdButtonVariant.PRIMARY, modifier = Modifier.weight(1f))
             }
         }
     }
@@ -1066,11 +1076,11 @@ private fun NdEmptyState(title: String, message: String, onAdd: () -> Unit, onIm
         Spacer(Modifier.height(32.dp))
         NdLabel(title, color = c.secondary, size = 13.sp)
         Spacer(Modifier.height(12.dp))
-        Text(message, style = TextStyle(fontFamily = NothingFonts.Body, fontSize = 14.sp, lineHeight = 21.sp, color = c.disabled, textAlign = androidx.compose.ui.text.style.TextAlign.Center))
+        Text(message, style = TextStyle(fontFamily = NothingFonts.Body, fontSize = 14.sp, lineHeight = 21.sp, color = c.secondary, textAlign = androidx.compose.ui.text.style.TextAlign.Center))
         Spacer(Modifier.height(32.dp))
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            NdButton("Import", onImport, variant = NdButtonVariant.SECONDARY, icon = Icons.Filled.FileDownload)
-            NdButton("New", onAdd, variant = NdButtonVariant.PRIMARY, icon = Icons.Filled.Add)
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            NdButton("Import", onImport, variant = NdButtonVariant.SECONDARY, icon = Icons.Filled.FileDownload, modifier = Modifier.weight(1f))
+            NdButton("New", onAdd, variant = NdButtonVariant.PRIMARY, icon = Icons.Filled.Add, modifier = Modifier.weight(1f))
         }
     }
 }

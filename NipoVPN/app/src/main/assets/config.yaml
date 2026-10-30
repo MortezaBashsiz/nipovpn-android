@@ -21,6 +21,7 @@ general:
   tunnelEnable: true
   connectionReuse: false
   tlsEnable: true
+  aesEnable: true
   tlsVerifyPeer: false
   tlsCertFile: "/etc/nipovpn/server.crt"
   tlsKeyFile: "/etc/nipovpn/server.key"

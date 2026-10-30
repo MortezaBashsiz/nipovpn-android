@@ -8,6 +8,10 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.IntrinsicSize
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.selectableGroup
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -37,7 +41,12 @@ import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.Dp
@@ -50,9 +59,39 @@ import net.sudoer.nipo.ui.theme.NdTheme
 import net.sudoer.nipo.ui.theme.NothingFonts
 
 /** Flat, ripple-less clickable — the Nothing interaction model (no scale/shadow). */
-fun Modifier.ndClick(enabled: Boolean = true, onClick: () -> Unit): Modifier = composed {
+fun Modifier.ndClick(enabled: Boolean = true, role: Role? = null, onClick: () -> Unit): Modifier = composed {
     val interaction = remember { MutableInteractionSource() }
-    clickable(interactionSource = interaction, indication = null, enabled = enabled, onClick = onClick)
+    clickable(interactionSource = interaction, indication = null, enabled = enabled, role = role, onClick = onClick)
+}
+
+/** Ripple-less on/off control; TalkBack announces [role] and the checked state. */
+fun Modifier.ndToggle(checked: Boolean, role: Role, onChange: (Boolean) -> Unit): Modifier = composed {
+    val interaction = remember { MutableInteractionSource() }
+    toggleable(value = checked, interactionSource = interaction, indication = null, role = role, onValueChange = onChange)
+}
+
+/** Ripple-less pick-one item; TalkBack announces [role] and whether it's selected. */
+fun Modifier.ndSelect(selected: Boolean, role: Role, onClick: () -> Unit): Modifier = composed {
+    val interaction = remember { MutableInteractionSource() }
+    selectable(selected = selected, interactionSource = interaction, indication = null, role = role, onClick = onClick)
+}
+
+/**
+ * Equal-width, equal-height cells, [columns] per row. Above 115% system text
+ * size it halves the columns so labels never wrap into or collide with values
+ * (HIG typography › Supporting Dynamic Type: reduce columns at large sizes).
+ */
+@Composable
+fun NdGrid(columns: Int, vararg cells: @Composable (Modifier) -> Unit) {
+    val perRow = if (LocalDensity.current.fontScale > 1.15f) (columns / 2).coerceAtLeast(1) else columns
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        cells.toList().chunked(perRow).forEach { row ->
+            Row(Modifier.fillMaxWidth().height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                row.forEach { it(Modifier.weight(1f).fillMaxHeight()) }
+                repeat(perRow - row.size) { Spacer(Modifier.weight(1f)) }
+            }
+        }
+    }
 }
 
 // ── ALL-CAPS instrument label (Space Mono) ──────────────────────────
@@ -163,7 +202,7 @@ fun NdButton(
             .clip(shape)
             .background(bg)
             .then(if (border != null) Modifier.border(1.dp, border, shape) else Modifier)
-            .ndClick(enabled, onClick)
+            .ndClick(enabled, Role.Button, onClick)
             .padding(horizontal = 24.dp),
         contentAlignment = Alignment.Center,
     ) {
@@ -171,43 +210,38 @@ fun NdButton(
             if (icon != null) Icon(icon, null, tint = fg, modifier = Modifier.size(16.dp))
             Text(
                 text = text.uppercase(),
-                style = TextStyle(fontFamily = NothingFonts.Mono, fontSize = 13.sp, letterSpacing = 0.06.em, color = fg),
+                // Bold lets the brand red (4.05:1 on black) clear the 3:1 bold-text minimum.
+                style = TextStyle(fontFamily = NothingFonts.Mono, fontWeight = if (variant == NdButtonVariant.DESTRUCTIVE) FontWeight.Bold else FontWeight.Normal, fontSize = 13.sp, letterSpacing = 0.06.em, color = fg),
             )
         }
     }
 }
 
+/**
+ * Icon-only button. [label] is what TalkBack reads. Outlined (the default) is
+ * the 44dp circle used in every top bar so leading and trailing buttons match;
+ * bare is for inline use inside rows and fields.
+ */
 @Composable
 fun NdIconButton(
     icon: ImageVector,
+    label: String,
     onClick: () -> Unit,
-    color: Color? = null,
-    accent: Boolean = false,
-    size: Dp = 40.dp,
+    outlined: Boolean = true,
+    size: Dp = 44.dp,
     modifier: Modifier = Modifier,
 ) {
     val c = NdTheme.colors
-    val fg = color ?: if (accent) c.accent else c.secondary
+    val shape = RoundedCornerShape(999.dp)
     Box(
-        modifier.size(size).ndClick(onClick = onClick),
+        modifier
+            .size(size)
+            .clip(shape)
+            .then(if (outlined) Modifier.border(1.dp, c.borderVisible, shape) else Modifier)
+            .ndClick(role = Role.Button, onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
-        Icon(icon, null, tint = fg, modifier = Modifier.size(20.dp))
-    }
-}
-
-@Composable
-fun NdBackButton(icon: ImageVector, onClick: () -> Unit) {
-    val c = NdTheme.colors
-    Box(
-        Modifier
-            .size(44.dp)
-            .clip(RoundedCornerShape(999.dp))
-            .border(1.dp, c.borderVisible, RoundedCornerShape(999.dp))
-            .ndClick(onClick = onClick),
-        contentAlignment = Alignment.Center,
-    ) {
-        Icon(icon, null, tint = c.primary, modifier = Modifier.size(20.dp))
+        Icon(icon, label, tint = if (outlined) c.primary else c.secondary, modifier = Modifier.size(20.dp))
     }
 }
 
@@ -226,57 +260,58 @@ fun NdInput(
 ) {
     val c = NdTheme.colors
     var focused by remember { mutableStateOf(false) }
-    Column(modifier.fillMaxWidth()) {
-        if (label != null) {
-            NdLabel(label, color = if (focused) c.primary else c.secondary)
-            Spacer(Modifier.height(2.dp))
-        }
-        Row(
-            Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.Bottom,
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            BasicTextField(
-                value = value,
-                onValueChange = onChange,
-                modifier = Modifier
-                    .weight(1f)
-                    .padding(vertical = 8.dp)
-                    .onFocusChangedCompat { focused = it },
-                textStyle = TextStyle(
-                    fontFamily = if (mono) NothingFonts.Mono else NothingFonts.Body,
-                    fontSize = 15.sp,
-                    color = c.primary,
-                ),
-                singleLine = !multiline,
-                cursorBrush = SolidColor(c.primary),
-                keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
-                    keyboardType = if (numeric) KeyboardType.Number else KeyboardType.Text
-                ),
-                visualTransformation = VisualTransformation.None,
-                decorationBox = { inner ->
-                    if (value.isEmpty() && placeholder != null) {
-                        Text(
-                            placeholder,
-                            style = TextStyle(
-                                fontFamily = if (mono) NothingFonts.Mono else NothingFonts.Body,
-                                fontSize = 15.sp,
-                                color = c.disabled,
-                            ),
-                        )
+    BasicTextField(
+        value = value,
+        onValueChange = onChange,
+        modifier = modifier.fillMaxWidth().onFocusChangedCompat { focused = it },
+        textStyle = TextStyle(
+            fontFamily = if (mono) NothingFonts.Mono else NothingFonts.Body,
+            fontSize = 15.sp,
+            color = c.primary,
+        ),
+        singleLine = !multiline,
+        cursorBrush = SolidColor(c.primary),
+        keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+            keyboardType = if (numeric) KeyboardType.Number else KeyboardType.Text
+        ),
+        visualTransformation = VisualTransformation.None,
+        // Label and underline live in the decoration so they merge into the
+        // field's semantics — TalkBack names the field instead of reading a bare edit box.
+        decorationBox = { inner ->
+            Column {
+                if (label != null) {
+                    NdLabel(label, color = if (focused) c.primary else c.secondary)
+                    Spacer(Modifier.height(2.dp))
+                }
+                Row(
+                    Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.Bottom,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    Box(Modifier.weight(1f).padding(vertical = 8.dp)) {
+                        if (value.isEmpty() && placeholder != null) {
+                            Text(
+                                placeholder,
+                                style = TextStyle(
+                                    fontFamily = if (mono) NothingFonts.Mono else NothingFonts.Body,
+                                    fontSize = 15.sp,
+                                    color = c.secondary,
+                                ),
+                            )
+                        }
+                        inner()
                     }
-                    inner()
-                },
-            )
-            if (trailing != null) trailing()
-        }
-        Box(
-            Modifier
-                .fillMaxWidth()
-                .height(1.dp)
-                .background(if (focused) c.primary else c.borderVisible)
-        )
-    }
+                    if (trailing != null) trailing()
+                }
+                Box(
+                    Modifier
+                        .fillMaxWidth()
+                        .height(1.dp)
+                        .background(if (focused) c.primary else c.borderVisible)
+                )
+            }
+        },
+    )
 }
 
 // Small focus helper.
@@ -325,9 +360,10 @@ fun NdSegmented(
     Row(
         modifier
             .then(if (full) Modifier.fillMaxWidth() else Modifier)
-            .height(40.dp)
+            .height(44.dp)
             .clip(shape)
-            .border(1.dp, c.borderVisible, shape),
+            .border(1.dp, c.borderVisible, shape)
+            .selectableGroup(),
     ) {
         options.forEachIndexed { i, o ->
             val on = o.value == value
@@ -337,7 +373,7 @@ fun NdSegmented(
                     .then(if (full) Modifier.weight(1f) else Modifier)
                     .fillMaxHeight()
                     .background(if (on) c.display else Color.Transparent)
-                    .ndClick { onChange(o.value) }
+                    .ndSelect(on, Role.RadioButton) { onChange(o.value) }
                     .padding(horizontal = 18.dp),
                 contentAlignment = Alignment.Center,
             ) {
@@ -360,7 +396,7 @@ fun NdChip(label: String, selected: Boolean, onClick: () -> Unit, technical: Boo
             .height(30.dp)
             .clip(shape)
             .border(1.dp, if (selected) c.display else c.borderVisible, shape)
-            .ndClick(onClick = onClick)
+            .ndToggle(selected, Role.Checkbox) { onClick() }
             .padding(horizontal = 14.dp),
         contentAlignment = Alignment.Center,
     ) {
@@ -443,52 +479,57 @@ fun NdBoxInput(
     var focused by remember { mutableStateOf(false) }
     val shape = RoundedCornerShape(8.dp)
     val borderColor = if (focused) c.display else c.borderVisible
-    Box(modifier) {
-        Row(
-            Modifier
-                .fillMaxWidth()
-                .clip(shape)
-                .background(c.surface)
-                .border(1.dp, borderColor, shape)
-                .padding(start = 12.dp, end = 12.dp, top = 14.dp, bottom = 11.dp),
-            verticalAlignment = Alignment.Top,
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            BasicTextField(
-                value = value,
-                onValueChange = onChange,
-                modifier = Modifier.weight(1f).onFocusChangedCompat { focused = it },
-                textStyle = TextStyle(fontFamily = if (mono) NothingFonts.Mono else NothingFonts.Body, fontSize = 15.sp, lineHeight = 20.sp, color = c.primary),
-                singleLine = !multiline,
-                minLines = if (multiline) rows else 1,
-                cursorBrush = SolidColor(c.primary),
-                keyboardOptions = KeyboardOptions(keyboardType = if (numeric) KeyboardType.Number else KeyboardType.Text),
-                decorationBox = { inner ->
-                    if (value.isEmpty() && placeholder != null) {
-                        Text(
-                            placeholder,
-                            style = TextStyle(fontFamily = if (mono) NothingFonts.Mono else NothingFonts.Body, fontSize = 15.sp, lineHeight = 20.sp, color = c.disabled),
-                        )
+    BasicTextField(
+        value = value,
+        onValueChange = onChange,
+        modifier = modifier.onFocusChangedCompat { focused = it },
+        textStyle = TextStyle(fontFamily = if (mono) NothingFonts.Mono else NothingFonts.Body, fontSize = 15.sp, lineHeight = 20.sp, color = c.primary),
+        singleLine = !multiline,
+        minLines = if (multiline) rows else 1,
+        cursorBrush = SolidColor(c.primary),
+        keyboardOptions = KeyboardOptions(keyboardType = if (numeric) KeyboardType.Number else KeyboardType.Text),
+        // The whole box, label chip included, is the decoration: the label merges
+        // into the field's semantics (TalkBack says "Buffer · B, 65536") and the
+        // box can stretch to match its neighbours in an NdGrid row.
+        decorationBox = { inner ->
+            Box {
+                Row(
+                    Modifier
+                        .fillMaxWidth()
+                        .fillMaxHeight()
+                        .clip(shape)
+                        .background(c.surface)
+                        .border(1.dp, borderColor, shape)
+                        .padding(start = 12.dp, end = 12.dp, top = 14.dp, bottom = 11.dp),
+                    verticalAlignment = Alignment.Top,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    Box(Modifier.weight(1f)) {
+                        if (value.isEmpty() && placeholder != null) {
+                            Text(
+                                placeholder,
+                                style = TextStyle(fontFamily = if (mono) NothingFonts.Mono else NothingFonts.Body, fontSize = 15.sp, lineHeight = 20.sp, color = c.secondary),
+                            )
+                        }
+                        inner()
                     }
-                    inner()
-                },
-            )
-            if (trailing != null) trailing()
-        }
-        // label chip straddling the top border, with the page-bg behind it to "cut" the border
-        Box(
-            Modifier
-                .align(Alignment.TopStart)
-                .offset(x = 10.dp, y = (-7).dp)
-                .background(c.black)
-                .padding(horizontal = 5.dp),
-        ) {
-            Text(
-                label.uppercase(),
-                style = TextStyle(fontFamily = NothingFonts.Mono, fontSize = 9.5.sp, letterSpacing = 0.1.em, color = if (focused) c.display else c.secondary),
-            )
-        }
-    }
+                    if (trailing != null) trailing()
+                }
+                // label chip straddling the top border, with the page-bg behind it to "cut" the border
+                Text(
+                    label.uppercase(),
+                    modifier = Modifier
+                        .align(Alignment.TopStart)
+                        .offset(x = 10.dp, y = (-8).dp)
+                        .background(c.black)
+                        .padding(horizontal = 5.dp),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    style = TextStyle(fontFamily = NothingFonts.Mono, fontSize = 11.sp, letterSpacing = 0.08.em, color = if (focused) c.display else c.secondary),
+                )
+            }
+        },
+    )
 }
 
 // ── Compact toggle box (for grouping switches side-by-side) ─────────
@@ -501,14 +542,15 @@ fun NdToggleBox(label: String, checked: Boolean, onChange: (Boolean) -> Unit, mo
             .clip(shape)
             .background(if (checked) c.surfaceRaised else c.surface)
             .border(1.dp, if (checked) c.display else c.borderVisible, shape)
-            .ndClick { onChange(!checked) }
+            .ndToggle(checked, Role.Switch, onChange)
             .padding(horizontal = 10.dp, vertical = 12.dp),
         verticalArrangement = Arrangement.spacedBy(9.dp),
     ) {
-        Text(label.uppercase(), style = TextStyle(fontFamily = NothingFonts.Mono, fontSize = 11.sp, letterSpacing = 0.08.em, color = if (checked) c.display else c.secondary))
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        Text(label.uppercase(), maxLines = 1, overflow = TextOverflow.Ellipsis, style = TextStyle(fontFamily = NothingFonts.Mono, fontSize = 11.sp, letterSpacing = 0.08.em, color = if (checked) c.display else c.secondary))
+        // The switch role already announces on/off; hide the visual readout from TalkBack.
+        Row(Modifier.clearAndSetSemantics {}, verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             Box(Modifier.size(7.dp).background(if (checked) c.success else c.disabled))
-            Text(if (checked) "ON" else "OFF", style = TextStyle(fontFamily = NothingFonts.Mono, fontSize = 10.sp, letterSpacing = 0.08.em, color = if (checked) c.success else c.disabled))
+            Text(if (checked) "ON" else "OFF", style = TextStyle(fontFamily = NothingFonts.Mono, fontSize = 11.sp, letterSpacing = 0.08.em, color = if (checked) c.success else c.secondary))
         }
     }
 }
@@ -525,6 +567,7 @@ fun NdBottomNav(items: List<NdNavItem>, active: String, onChange: (String) -> Un
             .background(c.black)
             .navigationBarsPadding()
             .height(64.dp)
+            .selectableGroup()
     ) {
         items.forEach { it ->
             val on = it.id == active
@@ -532,15 +575,15 @@ fun NdBottomNav(items: List<NdNavItem>, active: String, onChange: (String) -> Un
                 Modifier
                     .weight(1f)
                     .fillMaxHeight()
-                    .ndClick { onChange(it.id) },
+                    .ndSelect(on, Role.Tab) { onChange(it.id) },
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.Center,
             ) {
-                Icon(it.icon, null, tint = if (on) c.display else c.disabled, modifier = Modifier.size(20.dp))
+                Icon(it.icon, null, tint = if (on) c.display else c.secondary, modifier = Modifier.size(20.dp))
                 Spacer(Modifier.height(6.dp))
                 Text(
                     if (on) "[ ${it.label.uppercase()} ]" else it.label.uppercase(),
-                    style = TextStyle(fontFamily = NothingFonts.Mono, fontSize = 10.sp, letterSpacing = 0.08.em, color = if (on) c.display else c.disabled),
+                    style = TextStyle(fontFamily = NothingFonts.Mono, fontSize = 11.sp, letterSpacing = 0.08.em, color = if (on) c.display else c.secondary),
                 )
             }
         }
