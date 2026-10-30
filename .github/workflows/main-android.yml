@@ -13,7 +13,7 @@ permissions:
   contents: write
 
 env:
-  PACKAGE_VERSION: 1.1.59.5
+  PACKAGE_VERSION: 1.1.60.1
 
 jobs:
   build:
