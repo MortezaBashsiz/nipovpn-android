@@ -17,6 +17,7 @@ data class NipoConfig(
     val tunnelEnable: Boolean = true,
     val connectionReuse: Boolean = false,
     val tlsEnable: Boolean = true,
+    val aesEnable: Boolean = true,
     val tlsVerifyPeer: Boolean = false,
     val tlsCertFile: String = "/etc/nipovpn/server.crt",
     val tlsKeyFile: String = "/etc/nipovpn/server.key",
@@ -106,6 +107,7 @@ ${yamlList(finalCfg.endPoints)}
  tunnelEnable: ${finalCfg.tunnelEnable}
  connectionReuse: ${finalCfg.connectionReuse}
  tlsEnable: ${finalCfg.tlsEnable}
+ aesEnable: ${finalCfg.aesEnable}
  tlsVerifyPeer: ${finalCfg.tlsVerifyPeer}
  tlsCertFile: "${finalCfg.tlsCertFile}"
  tlsKeyFile: "${finalCfg.tlsKeyFile}"
@@ -146,6 +148,7 @@ fun exportNipoProfileToLink(profile: NipoProfile): String {
         .put("tunnelEnable", cfg.tunnelEnable)
         .put("connectionReuse", cfg.connectionReuse)
         .put("tlsEnable", cfg.tlsEnable)
+        .put("aesEnable", cfg.aesEnable)
         .put("tlsVerifyPeer", cfg.tlsVerifyPeer)
         .put("tlsCertFile", cfg.tlsCertFile)
         .put("tlsKeyFile", cfg.tlsKeyFile)
@@ -196,6 +199,7 @@ fun importNipoProfileFromLink(text: String): NipoProfile {
         tunnelEnable = cfgObj.optBoolean("tunnelEnable", defaultCfg.tunnelEnable),
         connectionReuse = cfgObj.optBoolean("connectionReuse", defaultCfg.connectionReuse),
         tlsEnable = cfgObj.optBoolean("tlsEnable", defaultCfg.tlsEnable),
+        aesEnable = cfgObj.optBoolean("aesEnable", defaultCfg.aesEnable),
         tlsVerifyPeer = cfgObj.optBoolean("tlsVerifyPeer", defaultCfg.tlsVerifyPeer),
         tlsCertFile = cfgObj.optString("tlsCertFile", defaultCfg.tlsCertFile),
         tlsKeyFile = cfgObj.optString("tlsKeyFile", defaultCfg.tlsKeyFile),
