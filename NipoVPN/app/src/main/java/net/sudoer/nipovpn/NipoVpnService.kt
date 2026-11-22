@@ -23,6 +23,10 @@ class NipoVpnService : Service() {
     @Volatile
     private var statsRunning = false
 
+    // Bumped on every start, so lines still draining from an old session's
+    // log can't stop a newer one. Guarded, like nipoProcess, by this service's lock.
+    private var session = 0
+
     override fun onCreate() {
         super.onCreate()
         startForeground(1, createNotification())
@@ -54,11 +58,13 @@ class NipoVpnService : Service() {
     }
 
 
+    @Synchronized
     private fun startNipoVpn() {
         if (nipoProcess != null) {
             LogManager.append("NipoVPN is already running")
             return
         }
+        session++
 
         try {
             val profile = loadActiveProfile(this)
@@ -107,7 +113,6 @@ class NipoVpnService : Service() {
                             Log.i("NipoVPN", line)
                             LogManager.append(line)
                             logFile.appendText("$line\n")
-                            coreRefusal(line)?.let(::onServerRefused)
                         }
                 } catch (e: Exception) {
                     val msg = "stdout reader failed: ${e.message}"
@@ -133,15 +138,19 @@ class NipoVpnService : Service() {
 
     // Over quota or disabled: retrying can't succeed, so stop and tell the user why.
     @Synchronized
-    private fun onServerRefused(refusal: Refusal) {
-        if (nipoProcess == null) return // already handled an earlier refusal line
+    private fun onServerRefused(refusal: Refusal, fromSession: Int) {
+        // Stale line from an earlier session, or a repeat after we already stopped.
+        if (fromSession != session || nipoProcess == null) return
         LogManager.append(refusal.message)
         stopNipoVpn()
         ConnectionStatus.refused(refusal)
         stopSelf()
     }
 
+    @Synchronized
     private fun stopNipoVpn() {
+        // Already stopped (e.g. onDestroy right after a refusal stopped us): nothing to log twice.
+        if (nipoProcess == null && logTailThread == null && statsThread == null) return
         try {
             tailRunning = false
             logTailThread?.interrupt()
@@ -215,6 +224,7 @@ class NipoVpnService : Service() {
         logTailThread?.interrupt()
 
         tailRunning = true
+        val tailSession = session
 
         logTailThread = Thread {
             var lastSize = 0L
@@ -234,6 +244,9 @@ class NipoVpnService : Service() {
                                 input.bufferedReader().forEachLine { line ->
                                     if (line.isNotBlank()) {
                                         LogManager.append(line)
+                                        // The core flushes its log file on every write but not
+                                        // its stdout, so refusals are read here, not from stdout.
+                                        coreRefusal(line)?.let { onServerRefused(it, tailSession) }
                                     }
                                 }
                             }
