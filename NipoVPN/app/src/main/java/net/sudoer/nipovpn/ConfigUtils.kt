@@ -80,55 +80,61 @@ fun yamlList(text: String): String {
     return text.lines()
         .map { it.trim() }
         .filter { it.isNotEmpty() }
-        .joinToString("\n") { " - $it" }
+        .joinToString("\n") { "    - $it" }
+}
+
+// Core 2.1.0 layout: general holds only what agent and server must agree on;
+// everything else lives in its own block (keys left in general log deprecation warnings).
+fun configYaml(cfg: NipoConfig, logFilePath: String, threads: Int): String {
+    val c = cfg.normalized()
+    return """
+---
+general:
+  aesEnable: ${c.aesEnable}
+  tunnelEnable: ${c.tunnelEnable}
+  tlsEnable: ${c.tlsEnable}
+  timeout: ${c.timeout}
+log:
+  logLevel: "${c.logLevel}"
+  logFile: "$logFilePath"
+server:
+  threads: $threads
+  listenIp: "0.0.0.0"
+  listenPort: 80
+  bufferSize: ${c.bufferSize}
+  tlsCertFile: "${c.tlsCertFile}"
+  tlsKeyFile: "${c.tlsKeyFile}"
+agent:
+  threads: $threads
+  listenIp: "${c.listenIp}"
+  listenPort: ${c.listenPort}
+  serverIp: "${c.serverIp}"
+  serverPort: ${c.serverPort}
+  httpVersion: "${c.httpVersion}"
+  userAgent: "${c.userAgent}"
+  token: "${c.token}"
+  protocol: ${c.protocol}
+  fakeUrls:
+${yamlList(c.fakeUrls)}
+  methods:
+${yamlList(c.methods)}
+  endPoints:
+${yamlList(c.endPoints)}
+  pullTimeout: ${c.pullTimeout}
+  connectionReuse: ${c.connectionReuse}
+  tlsVerifyPeer: ${c.tlsVerifyPeer}
+  tlsCaFile: "${c.tlsCaFile}"
+""".trimIndent()
 }
 
 fun generateConfigFile(context: Context, cfg: NipoConfig): File {
     val finalCfg = cfg.normalized()
-    val cpuThreads = phoneCpuCoreCount()
     val logDir = File(context.filesDir, "logs")
     logDir.mkdirs()
     val logFile = File(logDir, "nipovpn.log")
     val configFile = File(context.filesDir, "config.yaml")
 
-    val yaml = """
----
-general:
- token: "${finalCfg.token}"
- protocol: ${finalCfg.protocol}
- fakeUrls:
-${yamlList(finalCfg.fakeUrls)}
- methods:
-${yamlList(finalCfg.methods)}
- endPoints:
-${yamlList(finalCfg.endPoints)}
- timeout: ${finalCfg.timeout}
- pullTimeout: ${finalCfg.pullTimeout}
- tunnelEnable: ${finalCfg.tunnelEnable}
- connectionReuse: ${finalCfg.connectionReuse}
- tlsEnable: ${finalCfg.tlsEnable}
- aesEnable: ${finalCfg.aesEnable}
- tlsVerifyPeer: ${finalCfg.tlsVerifyPeer}
- tlsCertFile: "${finalCfg.tlsCertFile}"
- tlsKeyFile: "${finalCfg.tlsKeyFile}"
- tlsCaFile: "${finalCfg.tlsCaFile}"
- bufferSize: ${finalCfg.bufferSize}
-log:
- logLevel: "${finalCfg.logLevel}"
- logFile: "${logFile.absolutePath}"
-server:
- threads: ${cpuThreads}
- listenIp: "0.0.0.0"
- listenPort: 80
-agent:
- threads: ${cpuThreads}
- listenIp: "${finalCfg.listenIp}"
- listenPort: ${finalCfg.listenPort}
- serverIp: "${finalCfg.serverIp}"
- serverPort: ${finalCfg.serverPort}
- httpVersion: "${finalCfg.httpVersion}"
- userAgent: "${finalCfg.userAgent}"
-""".trimIndent()
+    val yaml = configYaml(finalCfg, logFile.absolutePath, phoneCpuCoreCount())
 
     configFile.writeText(yaml)
     LogManager.append("Generated config: protocol=${finalCfg.protocol.uppercase()} logLevel=${finalCfg.logLevel}")
