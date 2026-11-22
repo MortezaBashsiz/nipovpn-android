@@ -32,7 +32,7 @@ class CoreRefusalTest {
             Refusal.QUOTA_OR_DISABLED.message,
         )
         assertEquals(
-            "The server rejected this connection. Your account may have been disabled, or this profile's token or settings don't match the server.",
+            "The server refused this connection. Your account may be disabled, or this profile's token or settings may be wrong.",
             Refusal.REJECTED.message,
         )
     }
