@@ -76,7 +76,8 @@ fun phoneCpuCoreCount(): Int {
     return Runtime.getRuntime().availableProcessors().coerceAtLeast(1)
 }
 
-fun yamlList(text: String): String {
+// Items of a list nested one level inside a top-level block (e.g. agent.fakeUrls).
+private fun yamlList(text: String): String {
     val items = text.lines()
         .map { it.trim() }
         .filter { it.isNotEmpty() }
@@ -84,44 +85,43 @@ fun yamlList(text: String): String {
     return items.joinToString("") { "\n    - $it" }
 }
 
-// Core 2.1.0 layout: general holds only what agent and server must agree on;
+// Expects a normalized config. Core 2.1.0 layout: general holds only what agent and server must agree on;
 // everything else lives in its own block (keys left in general log deprecation warnings).
 fun configYaml(cfg: NipoConfig, logFilePath: String, threads: Int): String {
-    val c = cfg.normalized()
     return """
 ---
 general:
-  aesEnable: ${c.aesEnable}
-  tunnelEnable: ${c.tunnelEnable}
-  tlsEnable: ${c.tlsEnable}
-  timeout: ${c.timeout}
+  aesEnable: ${cfg.aesEnable}
+  tunnelEnable: ${cfg.tunnelEnable}
+  tlsEnable: ${cfg.tlsEnable}
+  timeout: ${cfg.timeout}
 log:
-  logLevel: "${c.logLevel}"
+  logLevel: "${cfg.logLevel}"
   logFile: "$logFilePath"
 server:
   threads: $threads
   listenIp: "0.0.0.0"
   listenPort: 80
-  bufferSize: ${c.bufferSize}
-  tlsCertFile: "${c.tlsCertFile}"
-  tlsKeyFile: "${c.tlsKeyFile}"
+  bufferSize: ${cfg.bufferSize}
+  tlsCertFile: "${cfg.tlsCertFile}"
+  tlsKeyFile: "${cfg.tlsKeyFile}"
 agent:
   threads: $threads
-  listenIp: "${c.listenIp}"
-  listenPort: ${c.listenPort}
-  serverIp: "${c.serverIp}"
-  serverPort: ${c.serverPort}
-  httpVersion: "${c.httpVersion}"
-  userAgent: "${c.userAgent}"
-  token: "${c.token}"
-  protocol: ${c.protocol}
-  fakeUrls:${yamlList(c.fakeUrls)}
-  methods:${yamlList(c.methods)}
-  endPoints:${yamlList(c.endPoints)}
-  pullTimeout: ${c.pullTimeout}
-  connectionReuse: ${c.connectionReuse}
-  tlsVerifyPeer: ${c.tlsVerifyPeer}
-  tlsCaFile: "${c.tlsCaFile}"
+  listenIp: "${cfg.listenIp}"
+  listenPort: ${cfg.listenPort}
+  serverIp: "${cfg.serverIp}"
+  serverPort: ${cfg.serverPort}
+  httpVersion: "${cfg.httpVersion}"
+  userAgent: "${cfg.userAgent}"
+  token: "${cfg.token}"
+  protocol: ${cfg.protocol}
+  fakeUrls:${yamlList(cfg.fakeUrls)}
+  methods:${yamlList(cfg.methods)}
+  endPoints:${yamlList(cfg.endPoints)}
+  pullTimeout: ${cfg.pullTimeout}
+  connectionReuse: ${cfg.connectionReuse}
+  tlsVerifyPeer: ${cfg.tlsVerifyPeer}
+  tlsCaFile: "${cfg.tlsCaFile}"
 """.trimIndent()
 }
 
