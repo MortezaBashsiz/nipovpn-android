@@ -889,8 +889,7 @@ private fun NdConfigScreen(
                     full = true,
                 )
                 NdGrid(
-                    3,
-                    { m -> NdBoxInput("Buffer · B", cfg.bufferSize, { cfg = cfg.copy(bufferSize = it) }, numeric = true, placeholder = "65536", modifier = m) },
+                    2,
                     { m -> NdBoxInput("Timeout · s", cfg.timeout, { cfg = cfg.copy(timeout = it) }, numeric = true, modifier = m) },
                     { m -> NdBoxInput("Pull · s", cfg.pullTimeout, { cfg = cfg.copy(pullTimeout = it) }, numeric = true, modifier = m) },
                 )
