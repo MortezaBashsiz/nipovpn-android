@@ -1,6 +1,7 @@
 package net.sudoer.nipo
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class ConfigYamlTest {
@@ -76,5 +77,18 @@ class ConfigYamlTest {
         """.trimIndent()
 
         assertEquals(expected, configYaml(cfg, logFilePath = "/data/logs/nipovpn.log", threads = 4))
+    }
+
+    // A bare "fakeUrls:" is a YAML null, which the 2.1.0 core rejects as "Error in agent.fakeUrls".
+    @Test
+    fun emptyListsAreWrittenAsEmptySequences() {
+        val yaml = configYaml(
+            NipoConfig(fakeUrls = "", endPoints = "  \n"),
+            logFilePath = "/data/logs/nipovpn.log",
+            threads = 4,
+        )
+
+        assertTrue(yaml, yaml.contains("\n  fakeUrls: []\n"))
+        assertTrue(yaml, yaml.contains("\n  endPoints: []\n"))
     }
 }

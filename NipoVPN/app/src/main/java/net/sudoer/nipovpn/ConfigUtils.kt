@@ -77,10 +77,11 @@ fun phoneCpuCoreCount(): Int {
 }
 
 fun yamlList(text: String): String {
-    return text.lines()
+    val items = text.lines()
         .map { it.trim() }
         .filter { it.isNotEmpty() }
-        .joinToString("\n") { "    - $it" }
+    if (items.isEmpty()) return " []"
+    return items.joinToString("") { "\n    - $it" }
 }
 
 // Core 2.1.0 layout: general holds only what agent and server must agree on;
@@ -114,12 +115,9 @@ agent:
   userAgent: "${c.userAgent}"
   token: "${c.token}"
   protocol: ${c.protocol}
-  fakeUrls:
-${yamlList(c.fakeUrls)}
-  methods:
-${yamlList(c.methods)}
-  endPoints:
-${yamlList(c.endPoints)}
+  fakeUrls:${yamlList(c.fakeUrls)}
+  methods:${yamlList(c.methods)}
+  endPoints:${yamlList(c.endPoints)}
   pullTimeout: ${c.pullTimeout}
   connectionReuse: ${c.connectionReuse}
   tlsVerifyPeer: ${c.tlsVerifyPeer}
