@@ -1,0 +1,40 @@
+package net.sudoer.nipo
+
+import org.junit.Assert.assertEquals
+import org.junit.Test
+
+class CoreRefusalTest {
+
+    // Shape of a core log line: "<timestamp> [<mode>] [<LEVEL>] <message>".
+    private fun agentLine(message: String) =
+        "2026-11-22_10:00:00 [agent] [ERROR] [5f0c2e1a-9b7d-4c3e-8a21-6d4f0b9e7c11] [AgentHandler handle] $message"
+
+    @Test
+    fun forbiddenRefusalMeansQuotaUsedUpOrAccountDisabled() {
+        assertEquals(
+            "Your account's data allowance has been exhausted or your account has been disabled.",
+            coreRefusalMessage(agentLine("[Server Refused] [403 Forbidden]")),
+        )
+    }
+
+    // 2.1.0 answers a disabled user's (or an unknown) token with 400, not 403.
+    @Test
+    fun badRequestRefusalMeansTokenRejected() {
+        assertEquals(
+            "The server did not accept this profile's token. Your account may have been disabled, or the token is wrong.",
+            coreRefusalMessage(agentLine("[Server Refused] [400 Bad Request]")),
+        )
+    }
+
+    @Test
+    fun ordinaryCoreLinesAreNotRefusals() {
+        listOf(
+            "2026-11-22_10:00:00 [agent] [INFO] [x] [CONNECT] [SRC 127.0.0.1:50122] [DST 142.250.1.1:443]",
+            agentLine("[Decryption Failed] : [ bad tag ] "),
+            "2026-11-22_10:00:00 [agent] [ERROR] [x] [TCPConnection] send refused or failed",
+            "2026-11-22_10:00:00 [agent] [TRACE] [x] [FORWARD] GET /errors/403 HTTP/1.1",
+            "===== Starting NipoVPN: Nipo1 Direct =====",
+            "",
+        ).forEach { line -> assertEquals(line, null, coreRefusalMessage(line)) }
+    }
+}
