@@ -17,11 +17,12 @@ class CoreRefusalTest {
         )
     }
 
-    // 2.1.0 answers a disabled user's (or an unknown) token with 400, not 403.
+    // 2.1.0 answers a disabled user's token with 400, but also a wrong token or
+    // mismatched settings (e.g. aesEnable), so the message can't blame one cause.
     @Test
-    fun badRequestRefusalMeansTokenRejected() {
+    fun badRequestRefusalMeansAccountOrProfileRejected() {
         assertEquals(
-            "The server did not accept this profile's token. Your account may have been disabled, or the token is wrong.",
+            "The server rejected this connection. Your account may have been disabled, or this profile's token or settings don't match the server.",
             coreRefusalMessage(agentLine("[Server Refused] [400 Bad Request]")),
         )
     }

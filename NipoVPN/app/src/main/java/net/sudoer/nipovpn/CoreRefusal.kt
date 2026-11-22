@@ -6,6 +6,6 @@ fun coreRefusalMessage(line: String): String? = when {
     "[Server Refused] [403" in line ->
         "Your account's data allowance has been exhausted or your account has been disabled."
     "[Server Refused] [400" in line ->
-        "The server did not accept this profile's token. Your account may have been disabled, or the token is wrong."
+        "The server rejected this connection. Your account may have been disabled, or this profile's token or settings don't match the server."
     else -> null
 }
