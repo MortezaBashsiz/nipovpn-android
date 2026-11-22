@@ -76,7 +76,7 @@ fun phoneCpuCoreCount(): Int {
     return Runtime.getRuntime().availableProcessors().coerceAtLeast(1)
 }
 
-// Items of a list nested one level inside a top-level block (e.g. agent.fakeUrls).
+// List items indented for a key inside a top-level block, e.g. agent.fakeUrls.
 private fun yamlList(text: String): String {
     val items = text.lines()
         .map { it.trim() }
@@ -85,8 +85,7 @@ private fun yamlList(text: String): String {
     return items.joinToString("") { "\n    - $it" }
 }
 
-// Expects a normalized config. Core 2.1.0 layout: general holds only what agent and server must agree on;
-// everything else lives in its own block (keys left in general log deprecation warnings).
+// Expects a normalized config. Core 2.1.0 keeps only the shared keys in general.
 fun configYaml(cfg: NipoConfig, logFilePath: String, threads: Int): String {
     return """
 ---

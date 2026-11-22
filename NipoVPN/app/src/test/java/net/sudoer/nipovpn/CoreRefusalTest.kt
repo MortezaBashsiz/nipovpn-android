@@ -14,8 +14,6 @@ class CoreRefusalTest {
         assertEquals(Refusal.QUOTA_OR_DISABLED, coreRefusal(agentLine("[Server Refused] [403 Forbidden]")))
     }
 
-    // 2.1.0 answers a disabled user's token with 400, but also a wrong token or
-    // mismatched settings (e.g. aesEnable), so the message can't blame one cause.
     @Test
     fun badRequestRefusalMeansAccountOrProfileRejected() {
         assertEquals(Refusal.REJECTED, coreRefusal(agentLine("[Server Refused] [400 Bad Request]")))

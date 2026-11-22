@@ -21,7 +21,6 @@ data class ConnectionState(
     val startedAtMillis: Long? = null,
     val downKBs: Float = 0f,
     val upKBs: Float = 0f,
-    /** Why the server refused this account; null when it didn't. */
     val refusal: Refusal? = null,
 )
 

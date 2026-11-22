@@ -23,8 +23,8 @@ class NipoVpnService : Service() {
     @Volatile
     private var statsRunning = false
 
-    // Bumped on every start, so lines still draining from an old session's
-    // log can't stop a newer one. Guarded, like nipoProcess, by this service's lock.
+    // Bumped per start so a stale log line can't stop a newer session.
+    // Guarded by the service lock, like nipoProcess.
     private var session = 0
 
     override fun onCreate() {
@@ -136,10 +136,10 @@ class NipoVpnService : Service() {
         }
     }
 
-    // Over quota or disabled: retrying can't succeed, so stop and tell the user why.
+    // Retrying can't help a refused account, so stop and show why.
     @Synchronized
     private fun onServerRefused(refusal: Refusal, fromSession: Int) {
-        // Stale line from an earlier session, or a repeat after we already stopped.
+        // Stale session, or a refusal already handled.
         if (fromSession != session || nipoProcess == null) return
         LogManager.append(refusal.message)
         stopNipoVpn()
@@ -149,7 +149,7 @@ class NipoVpnService : Service() {
 
     @Synchronized
     private fun stopNipoVpn() {
-        // Already stopped (e.g. onDestroy right after a refusal stopped us): nothing to log twice.
+        // Already stopped, e.g. onDestroy right after a refusal.
         if (nipoProcess == null && logTailThread == null && statsThread == null) return
         try {
             tailRunning = false
@@ -244,8 +244,7 @@ class NipoVpnService : Service() {
                                 input.bufferedReader().forEachLine { line ->
                                     if (line.isNotBlank()) {
                                         LogManager.append(line)
-                                        // The core flushes its log file on every write but not
-                                        // its stdout, so refusals are read here, not from stdout.
+                                        // The core flushes its log file on each write but not stdout, so check here.
                                         coreRefusal(line)?.let { onServerRefused(it, tailSession) }
                                     }
                                 }
