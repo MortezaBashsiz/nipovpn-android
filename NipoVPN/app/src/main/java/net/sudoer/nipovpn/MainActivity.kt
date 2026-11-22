@@ -382,6 +382,7 @@ fun NipoVpnApp(context: Context, importUri: Uri?, onStart: () -> Unit, onStop: (
                         connected = connected,
                         elapsed = formatElapsed(elapsedSeconds),
                         pingMs = pingMs,
+                        refusal = connectionState.refusal,
                         onSelect = { select(it) },
                         onConnect = { resolvedSelectedId?.let { id -> toggle(id) } },
                         onOpen = { draft = null; editId = it; screen = "config" },
@@ -554,6 +555,7 @@ private fun NdConnectionHero(
     connected: Boolean,
     elapsed: String,
     pingMs: Long?,
+    refusal: String?,
     onToggle: () -> Unit,
 ) {
     val statusColor = if (connected) hc.success else hc.secondary
@@ -565,7 +567,7 @@ private fun NdConnectionHero(
         Column(Modifier.padding(22.dp)) {
             // status row: status + ping (ping only when connected)
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                NdStatusOn(hc, if (connected) "Connected" else "Offline", statusColor, dot = true)
+                NdStatusOn(hc, if (connected) "Connected" else if (refusal != null) "Refused" else "Offline", statusColor, dot = true)
                 if (connected) {
                     Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
                         Text(pingMs?.toString() ?: "—", style = TextStyle(fontFamily = NothingFonts.Mono, fontSize = 14.sp, color = hc.primary))
@@ -588,6 +590,10 @@ private fun NdConnectionHero(
                     overflow = TextOverflow.Ellipsis,
                     style = TextStyle(fontFamily = NothingFonts.Body, fontWeight = FontWeight.Medium, fontSize = 15.sp, color = hc.primary),
                 )
+            }
+            if (!connected && refusal != null) {
+                Spacer(Modifier.height(14.dp))
+                Text(refusal, style = TextStyle(fontFamily = NothingFonts.Body, fontSize = 14.sp, lineHeight = 20.sp, color = hc.primary))
             }
             Spacer(Modifier.height(22.dp))
             if (connected) {
@@ -661,6 +667,7 @@ private fun NdProfilesScreen(
     connected: Boolean,
     elapsed: String,
     pingMs: Long?,
+    refusal: String?,
     onSelect: (String) -> Unit,
     onConnect: () -> Unit,
     onOpen: (String) -> Unit,
@@ -693,6 +700,7 @@ private fun NdProfilesScreen(
                 connected = heroConnected,
                 elapsed = elapsed,
                 pingMs = pingMs,
+                refusal = refusal,
                 onToggle = onConnect,
             )
             Spacer(Modifier.height(28.dp))
