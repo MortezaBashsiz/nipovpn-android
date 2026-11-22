@@ -559,6 +559,12 @@ private fun NdConnectionHero(
     onToggle: () -> Unit,
 ) {
     val statusColor = if (connected) hc.success else hc.secondary
+    val shownRefusal = refusal.takeUnless { connected }
+    val statusLabel = when {
+        connected -> "Connected"
+        shownRefusal != null -> "Refused"
+        else -> "Offline"
+    }
     val shape = RoundedCornerShape(16.dp)
     Box(
         Modifier.fillMaxWidth().clip(shape).background(hc.surface).border(1.dp, hc.borderVisible, shape),
@@ -567,7 +573,7 @@ private fun NdConnectionHero(
         Column(Modifier.padding(22.dp)) {
             // status row: status + ping (ping only when connected)
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                NdStatusOn(hc, if (connected) "Connected" else if (refusal != null) "Refused" else "Offline", statusColor, dot = true)
+                NdStatusOn(hc, statusLabel, statusColor, dot = true)
                 if (connected) {
                     Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
                         Text(pingMs?.toString() ?: "—", style = TextStyle(fontFamily = NothingFonts.Mono, fontSize = 14.sp, color = hc.primary))
@@ -591,9 +597,9 @@ private fun NdConnectionHero(
                     style = TextStyle(fontFamily = NothingFonts.Body, fontWeight = FontWeight.Medium, fontSize = 15.sp, color = hc.primary),
                 )
             }
-            if (!connected && refusal != null) {
+            if (shownRefusal != null) {
                 Spacer(Modifier.height(14.dp))
-                Text(refusal.message, style = TextStyle(fontFamily = NothingFonts.Body, fontSize = 14.sp, lineHeight = 20.sp, color = hc.primary))
+                Text(shownRefusal.message, style = TextStyle(fontFamily = NothingFonts.Body, fontSize = 14.sp, lineHeight = 20.sp, color = hc.primary))
             }
             Spacer(Modifier.height(22.dp))
             if (connected) {
@@ -700,7 +706,8 @@ private fun NdProfilesScreen(
                 connected = heroConnected,
                 elapsed = elapsed,
                 pingMs = pingMs,
-                refusal = refusal,
+                // Like heroConnected: only the profile that was refused shows why.
+                refusal = refusal.takeIf { activeId == selectedId },
                 onToggle = onConnect,
             )
             Spacer(Modifier.height(28.dp))
