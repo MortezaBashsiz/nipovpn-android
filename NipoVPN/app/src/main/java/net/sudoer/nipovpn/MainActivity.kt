@@ -555,7 +555,7 @@ private fun NdConnectionHero(
     connected: Boolean,
     elapsed: String,
     pingMs: Long?,
-    refusal: String?,
+    refusal: Refusal?,
     onToggle: () -> Unit,
 ) {
     val statusColor = if (connected) hc.success else hc.secondary
@@ -593,7 +593,7 @@ private fun NdConnectionHero(
             }
             if (!connected && refusal != null) {
                 Spacer(Modifier.height(14.dp))
-                Text(refusal, style = TextStyle(fontFamily = NothingFonts.Body, fontSize = 14.sp, lineHeight = 20.sp, color = hc.primary))
+                Text(refusal.message, style = TextStyle(fontFamily = NothingFonts.Body, fontSize = 14.sp, lineHeight = 20.sp, color = hc.primary))
             }
             Spacer(Modifier.height(22.dp))
             if (connected) {
@@ -667,7 +667,7 @@ private fun NdProfilesScreen(
     connected: Boolean,
     elapsed: String,
     pingMs: Long?,
-    refusal: String?,
+    refusal: Refusal?,
     onSelect: (String) -> Unit,
     onConnect: () -> Unit,
     onOpen: (String) -> Unit,

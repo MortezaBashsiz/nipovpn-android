@@ -107,7 +107,7 @@ class NipoVpnService : Service() {
                             Log.i("NipoVPN", line)
                             LogManager.append(line)
                             logFile.appendText("$line\n")
-                            coreRefusalMessage(line)?.let(::onServerRefused)
+                            coreRefusal(line)?.let(::onServerRefused)
                         }
                 } catch (e: Exception) {
                     val msg = "stdout reader failed: ${e.message}"
@@ -133,11 +133,11 @@ class NipoVpnService : Service() {
 
     // Over quota or disabled: retrying can't succeed, so stop and tell the user why.
     @Synchronized
-    private fun onServerRefused(message: String) {
+    private fun onServerRefused(refusal: Refusal) {
         if (nipoProcess == null) return // already handled an earlier refusal line
-        LogManager.append(message)
+        LogManager.append(refusal.message)
         stopNipoVpn()
-        ConnectionStatus.refused(message)
+        ConnectionStatus.refused(refusal)
         stopSelf()
     }
 

@@ -11,19 +11,31 @@ class CoreRefusalTest {
 
     @Test
     fun forbiddenRefusalMeansQuotaUsedUpOrAccountDisabled() {
-        assertEquals(
-            "Your account's data allowance has been exhausted or your account has been disabled.",
-            coreRefusalMessage(agentLine("[Server Refused] [403 Forbidden]")),
-        )
+        assertEquals(Refusal.QUOTA_OR_DISABLED, coreRefusal(agentLine("[Server Refused] [403 Forbidden]")))
     }
 
     // 2.1.0 answers a disabled user's token with 400, but also a wrong token or
     // mismatched settings (e.g. aesEnable), so the message can't blame one cause.
     @Test
     fun badRequestRefusalMeansAccountOrProfileRejected() {
+        assertEquals(Refusal.REJECTED, coreRefusal(agentLine("[Server Refused] [400 Bad Request]")))
+    }
+
+    @Test
+    fun tunnelRefusalsAreDetectedToo() {
+        val line = "2026-11-22_10:00:00 [agent] [ERROR] [x] [TCPConnection] [Server Refused] [403 Forbidden]"
+        assertEquals(Refusal.QUOTA_OR_DISABLED, coreRefusal(line))
+    }
+
+    @Test
+    fun messagesShownToTheUser() {
+        assertEquals(
+            "Your account's data allowance has been exhausted or your account has been disabled.",
+            Refusal.QUOTA_OR_DISABLED.message,
+        )
         assertEquals(
             "The server rejected this connection. Your account may have been disabled, or this profile's token or settings don't match the server.",
-            coreRefusalMessage(agentLine("[Server Refused] [400 Bad Request]")),
+            Refusal.REJECTED.message,
         )
     }
 
@@ -36,6 +48,6 @@ class CoreRefusalTest {
             "2026-11-22_10:00:00 [agent] [TRACE] [x] [FORWARD] GET /errors/403 HTTP/1.1",
             "===== Starting NipoVPN: Nipo1 Direct =====",
             "",
-        ).forEach { line -> assertEquals(line, null, coreRefusalMessage(line)) }
+        ).forEach { line -> assertEquals(line, null, coreRefusal(line)) }
     }
 }

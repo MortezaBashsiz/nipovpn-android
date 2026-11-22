@@ -21,8 +21,8 @@ data class ConnectionState(
     val startedAtMillis: Long? = null,
     val downKBs: Float = 0f,
     val upKBs: Float = 0f,
-    /** Why the server refused this account (see [coreRefusalMessage]); null when it didn't. */
-    val refusal: String? = null,
+    /** Why the server refused this account; null when it didn't. */
+    val refusal: Refusal? = null,
 )
 
 object ConnectionStatus {
@@ -45,8 +45,8 @@ object ConnectionStatus {
     }
 
     @Synchronized
-    fun refused(message: String) {
-        _state.value = ConnectionState(refusal = message)
+    fun refused(reason: Refusal) {
+        _state.value = ConnectionState(refusal = reason)
     }
 
     @Synchronized
