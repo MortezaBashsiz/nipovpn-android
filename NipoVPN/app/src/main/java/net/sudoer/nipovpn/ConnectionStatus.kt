@@ -21,6 +21,7 @@ data class ConnectionState(
     val startedAtMillis: Long? = null,
     val downKBs: Float = 0f,
     val upKBs: Float = 0f,
+    val refusal: Refusal? = null,
 )
 
 object ConnectionStatus {
@@ -39,7 +40,12 @@ object ConnectionStatus {
 
     @Synchronized
     fun stopped() {
-        _state.value = ConnectionState()
+        _state.value = ConnectionState(refusal = _state.value.refusal)
+    }
+
+    @Synchronized
+    fun refused(reason: Refusal) {
+        _state.value = ConnectionState(refusal = reason)
     }
 
     @Synchronized
