@@ -23,6 +23,10 @@ class NipoVpnService : Service() {
     @Volatile
     private var statsRunning = false
 
+    // Bumped per start so a stale log line can't stop a newer session.
+    // Guarded by the service lock, like nipoProcess.
+    private var session = 0
+
     override fun onCreate() {
         super.onCreate()
         startForeground(1, createNotification())
@@ -54,11 +58,13 @@ class NipoVpnService : Service() {
     }
 
 
+    @Synchronized
     private fun startNipoVpn() {
         if (nipoProcess != null) {
             LogManager.append("NipoVPN is already running")
             return
         }
+        session++
 
         try {
             val profile = loadActiveProfile(this)
@@ -130,7 +136,21 @@ class NipoVpnService : Service() {
         }
     }
 
+    // Retrying can't help a refused account, so stop and show why.
+    @Synchronized
+    private fun onServerRefused(refusal: Refusal, fromSession: Int) {
+        // Stale session, or a refusal already handled.
+        if (fromSession != session || nipoProcess == null) return
+        LogManager.append(refusal.message)
+        stopNipoVpn()
+        ConnectionStatus.refused(refusal)
+        stopSelf()
+    }
+
+    @Synchronized
     private fun stopNipoVpn() {
+        // Already stopped, e.g. onDestroy right after a refusal.
+        if (nipoProcess == null && logTailThread == null && statsThread == null) return
         try {
             tailRunning = false
             logTailThread?.interrupt()
@@ -204,6 +224,7 @@ class NipoVpnService : Service() {
         logTailThread?.interrupt()
 
         tailRunning = true
+        val tailSession = session
 
         logTailThread = Thread {
             var lastSize = 0L
@@ -223,6 +244,8 @@ class NipoVpnService : Service() {
                                 input.bufferedReader().forEachLine { line ->
                                     if (line.isNotBlank()) {
                                         LogManager.append(line)
+                                        // The core flushes its log file on each write but not stdout, so check here.
+                                        coreRefusal(line)?.let { onServerRefused(it, tailSession) }
                                     }
                                 }
                             }
