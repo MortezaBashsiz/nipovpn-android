@@ -44,7 +44,10 @@ android {
     buildTypes {
         release {
             signingConfig = signingConfigs.getByName("release")
-            isMinifyEnabled = false
+            // R8: shrink + obfuscate (Play flags DEX optimization below 25%).
+            // The mapping file is embedded in the AAB so Play deobfuscates crashes.
+            isMinifyEnabled = true
+            isShrinkResources = true
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
