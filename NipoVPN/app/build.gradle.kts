@@ -20,8 +20,8 @@ android {
         applicationId = "net.sudoer.nipo"
         minSdk = 24
         targetSdk = 36
-        versionCode = 21001
-        versionName = "2.1.0.1"
+        versionCode = 21002
+        versionName = "2.1.0.2"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
@@ -44,7 +44,10 @@ android {
     buildTypes {
         release {
             signingConfig = signingConfigs.getByName("release")
-            isMinifyEnabled = false
+            // R8: shrink + obfuscate (Play flags DEX optimization below 25%).
+            // The mapping file is embedded in the AAB so Play deobfuscates crashes.
+            isMinifyEnabled = true
+            isShrinkResources = true
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
