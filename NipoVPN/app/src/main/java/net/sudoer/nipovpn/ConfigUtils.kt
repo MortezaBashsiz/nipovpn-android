@@ -125,7 +125,7 @@ agent:
 }
 
 fun generateConfigFile(context: Context, cfg: NipoConfig): File {
-    val finalCfg = cfg.normalized()
+    val finalCfg = cfg.normalized().forMode(loadConnectionMode(context.filesDir))
     val logDir = File(context.filesDir, "logs")
     logDir.mkdirs()
     val logFile = File(logDir, "nipovpn.log")
