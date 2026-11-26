@@ -3,7 +3,6 @@ package net.sudoer.nipo
 import android.os.Build
 import java.io.File
 
-
 // PROXY: the core listens on 127.0.0.1 and only apps pointed at it use it.
 // VPN: every app's traffic is read from a TUN device and sent to that same listener.
 enum class ConnectionMode { PROXY, VPN }
@@ -18,8 +17,9 @@ const val MAPDNS_ADDRESS = "198.18.0.2"
 
 // Config for hev-socks5-tunnel. mapdns answers DNS on the device with a placeholder address and
 // sends the real name to the core, so no DNS packet has to cross the tunnel: the core has no UDP.
-// It refuses both relay modes at the first reply; "udp" is the standard UDP ASSOCIATE request.
-fun tunnelYaml(socksPort: String): String = """
+// The core also refuses both of the tunnel's UDP relay modes at the first reply, and the tunnel
+// then drops the datagrams; "udp" is the standard UDP ASSOCIATE request.
+fun tunnelYaml(socksPort: Int): String = """
     tunnel:
       mtu: $TUN_MTU
     socks5:

@@ -29,7 +29,7 @@ class VpnModeTest {
               cache-size: 10000
         """.trimIndent() + "\n"
 
-        assertEquals(expected, tunnelYaml(socksPort = "1080"))
+        assertEquals(expected, tunnelYaml(socksPort = 1080))
     }
 
     // Proxy is what the app did before the setting existed.

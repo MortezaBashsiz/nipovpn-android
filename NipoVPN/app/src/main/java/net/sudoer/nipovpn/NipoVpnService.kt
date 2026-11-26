@@ -79,7 +79,7 @@ class NipoVpnService : VpnService() {
             LogManager.append("NipoVPN is already running")
             return
         }
-        session++
+        val thisSession = ++session
 
         try {
             val profile = loadActiveProfile(this)
@@ -136,9 +136,13 @@ class NipoVpnService : VpnService() {
                     LogManager.append(msg)
                     logFile.appendText("$msg\n")
                 }
+                onCoreExited(thisSession)
             }.start()
 
-            if (mode == ConnectionMode.VPN) startTunnel(profile.config.normalized().listenPort.trim())
+            if (mode == ConnectionMode.VPN) {
+                val port = profile.config.listenPort.trim().toIntOrNull() ?: error("the listen port is not a number")
+                startTunnel(port)
+            }
 
             ConnectionStatus.started()
             startStatsSampler()
@@ -159,7 +163,7 @@ class NipoVpnService : VpnService() {
     }
 
     // Sends every other app's traffic to the core's SOCKS5 listener.
-    private fun startTunnel(socksPort: String) {
+    private fun startTunnel(socksPort: Int) {
         val builder = Builder()
             .setSession("NipoVPN")
             .setMtu(TUN_MTU)
@@ -191,6 +195,18 @@ class NipoVpnService : VpnService() {
         LogManager.append(refusal.message)
         stopNipoVpn()
         ConnectionStatus.refused(refusal)
+        stopSelf()
+    }
+
+    // The core died while the tunnel was up: without this the TUN keeps every app offline.
+    @Synchronized
+    private fun onCoreExited(fromSession: Int) {
+        // Stale session, or a stop that already ran.
+        if (fromSession != session || nipoProcess == null) return
+        // Proxy mode leaves the service as it was.
+        if (tun == null) return
+        LogManager.append("The core stopped; closing the VPN")
+        stopNipoVpn()
         stopSelf()
     }
 

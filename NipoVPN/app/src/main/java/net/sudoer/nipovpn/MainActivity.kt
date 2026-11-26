@@ -584,7 +584,7 @@ private fun NdConnectionHero(
     pingMs: Long?,
     refusal: Refusal?,
     mode: ConnectionMode,
-    running: Boolean,
+    anyRunning: Boolean,
     onModeChange: (ConnectionMode) -> Unit,
     onToggle: () -> Unit,
 ) {
@@ -633,7 +633,7 @@ private fun NdConnectionHero(
             }
             Spacer(Modifier.height(22.dp))
             if (Build.VERSION.SDK_INT >= VPN_MIN_SDK) {
-                if (!running) {
+                if (!anyRunning) {
                     NdSegmented(
                         options = listOf(NdSegOption(ConnectionMode.PROXY.name, "Proxy"), NdSegOption(ConnectionMode.VPN.name, "VPN")),
                         value = mode.name,
@@ -757,7 +757,7 @@ private fun NdProfilesScreen(
                 // Like heroConnected: only the profile that was refused shows why.
                 refusal = refusal.takeIf { activeId == selectedId },
                 mode = mode,
-                running = connected,
+                anyRunning = connected,
                 onModeChange = onModeChange,
                 onToggle = onConnect,
             )
