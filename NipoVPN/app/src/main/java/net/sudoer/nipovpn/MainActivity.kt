@@ -5,12 +5,15 @@ import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import android.net.VpnService
+import android.os.Build
 import android.os.Bundle
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -110,6 +113,15 @@ import java.util.UUID
 
 class MainActivity : ComponentActivity() {
 
+    private val vpnConsent = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+        if (result.resultCode == RESULT_OK) {
+            startNipoVpnService()
+        } else {
+            Toast.makeText(this, "VPN mode needs the VPN permission", Toast.LENGTH_SHORT).show()
+            LogManager.append("VPN permission was not granted")
+        }
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
@@ -121,12 +133,23 @@ class MainActivity : ComponentActivity() {
                     NipoVpnApp(
                         context = this,
                         importUri = importUri,
-                        onStart = { startNipoVpnService() },
-                        onStop = { stopService(Intent(this, NipoVpnService::class.java)) },
+                        onStart = { connect() },
+                        onStop = { disconnect() },
                     )
                 }
             }
         }
+    }
+
+    private fun connect() {
+        val consent = if (loadConnectionMode(filesDir) == ConnectionMode.VPN) VpnService.prepare(this) else null
+        if (consent != null) vpnConsent.launch(consent) else startNipoVpnService()
+    }
+
+    // While a tunnel is up the system keeps the service bound, so it has to close the tunnel itself.
+    private fun disconnect() {
+        val service = Intent(this, NipoVpnService::class.java)
+        if (ConnectionStatus.state.value.running) startService(service.setAction(NipoVpnService.ACTION_STOP)) else stopService(service)
     }
 
     private fun startNipoVpnService() {
@@ -169,6 +192,7 @@ fun NipoVpnApp(context: Context, importUri: Uri?, onStart: () -> Unit, onStop: (
     var subFormError by remember { mutableStateOf<String?>(null) }
     var subImportText by remember { mutableStateOf("") }
     val scope = rememberCoroutineScope()
+    var mode by remember { mutableStateOf(loadConnectionMode(context.filesDir)) }
 
     val connectionState by ConnectionStatus.state.collectAsState()
     val activeProfile = profiles.firstOrNull { it.enabled }
@@ -179,6 +203,7 @@ fun NipoVpnApp(context: Context, importUri: Uri?, onStart: () -> Unit, onStop: (
     fun persist(updated: List<NipoProfile>) { profiles = updated; saveProfiles(context, updated) }
     // Update + persist the selection so it survives app restarts.
     fun select(id: String) { selectedId = id; saveSelectedId(context, id) }
+    fun setMode(m: ConnectionMode) { mode = m; saveConnectionMode(context.filesDir, m) }
     fun persistSubs(updated: List<NipoSubscription>) { subscriptions = updated; saveSubscriptions(context, updated) }
 
     fun duplicateSubError(name: String, link: String, excludingId: String?): String? {
@@ -313,7 +338,7 @@ fun NipoVpnApp(context: Context, importUri: Uri?, onStart: () -> Unit, onStop: (
     var pingMs by remember { mutableStateOf<Long?>(null) }
     LaunchedEffect(activeProfile?.id, connected) {
         if (!connected || activeProfile == null) { pingMs = null; return@LaunchedEffect }
-        while (true) { pingMs = pingGoogleDelayMs(activeProfile); delay(5_000) }
+        while (true) { pingMs = pingGoogleDelayMs(activeProfile.copy(config = activeProfile.config.forMode(mode))); delay(5_000) }
     }
 
     val logs by LogManager.logs.collectAsState()
@@ -383,6 +408,8 @@ fun NipoVpnApp(context: Context, importUri: Uri?, onStart: () -> Unit, onStop: (
                         elapsed = formatElapsed(elapsedSeconds),
                         pingMs = pingMs,
                         refusal = connectionState.refusal,
+                        mode = mode,
+                        onModeChange = { setMode(it) },
                         onSelect = { select(it) },
                         onConnect = { resolvedSelectedId?.let { id -> toggle(id) } },
                         onOpen = { draft = null; editId = it; screen = "config" },
@@ -556,6 +583,9 @@ private fun NdConnectionHero(
     elapsed: String,
     pingMs: Long?,
     refusal: Refusal?,
+    mode: ConnectionMode,
+    running: Boolean,
+    onModeChange: (ConnectionMode) -> Unit,
     onToggle: () -> Unit,
 ) {
     val statusColor = if (connected) hc.success else hc.secondary
@@ -602,6 +632,22 @@ private fun NdConnectionHero(
                 Text(shownRefusal.message, style = TextStyle(fontFamily = NothingFonts.Body, fontSize = 14.sp, lineHeight = 20.sp, color = hc.primary))
             }
             Spacer(Modifier.height(22.dp))
+            if (Build.VERSION.SDK_INT >= VPN_MIN_SDK) {
+                if (!running) {
+                    NdSegmented(
+                        options = listOf(NdSegOption(ConnectionMode.PROXY.name, "Proxy"), NdSegOption(ConnectionMode.VPN.name, "VPN")),
+                        value = mode.name,
+                        onChange = { onModeChange(ConnectionMode.valueOf(it)) },
+                        full = true,
+                    )
+                    Spacer(Modifier.height(10.dp))
+                }
+                Text(
+                    if (mode == ConnectionMode.VPN) "Every app goes through the tunnel. TCP only: calls, some games and other UDP traffic will not work." else "Only apps set to use the local proxy go through the tunnel.",
+                    style = TextStyle(fontFamily = NothingFonts.Body, fontSize = 13.sp, color = hc.secondary),
+                )
+                Spacer(Modifier.height(14.dp))
+            }
             if (connected) {
                 NdButton("Disconnect", onToggle, variant = NdButtonVariant.DESTRUCTIVE, icon = Icons.Filled.Pause, full = true)
             } else {
@@ -674,6 +720,8 @@ private fun NdProfilesScreen(
     elapsed: String,
     pingMs: Long?,
     refusal: Refusal?,
+    mode: ConnectionMode,
+    onModeChange: (ConnectionMode) -> Unit,
     onSelect: (String) -> Unit,
     onConnect: () -> Unit,
     onOpen: (String) -> Unit,
@@ -708,6 +756,9 @@ private fun NdProfilesScreen(
                 pingMs = pingMs,
                 // Like heroConnected: only the profile that was refused shows why.
                 refusal = refusal.takeIf { activeId == selectedId },
+                mode = mode,
+                running = connected,
+                onModeChange = onModeChange,
                 onToggle = onConnect,
             )
             Spacer(Modifier.height(28.dp))
