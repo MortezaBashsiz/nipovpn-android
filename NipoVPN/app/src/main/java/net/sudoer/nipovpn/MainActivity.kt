@@ -643,7 +643,12 @@ private fun NdConnectionHero(
                     Spacer(Modifier.height(10.dp))
                 }
                 Text(
-                    if (mode == ConnectionMode.VPN) "Every app goes through the tunnel. TCP only: calls, some games and other UDP traffic will not work." else "Only apps set to use the local proxy go through the tunnel.",
+                    when {
+                        mode == ConnectionMode.PROXY -> "Only apps set to use the local proxy go through the tunnel."
+                        profile?.config?.traffic == "tcp" -> "Every app goes through the tunnel. TCP only: calls, some games and other UDP traffic will not work."
+                        profile?.config?.traffic == "udp" -> "Every app goes through the tunnel. UDP only: web pages and most apps need TCP and will not work."
+                        else -> "Every app goes through the tunnel, TCP and UDP."
+                    },
                     style = TextStyle(fontFamily = NothingFonts.Body, fontSize = 13.sp, color = hc.secondary),
                 )
                 Spacer(Modifier.height(14.dp))
@@ -943,9 +948,20 @@ private fun NdConfigScreen(
                 NdSegmented(
                     options = listOf(NdSegOption("http", "HTTP"), NdSegOption("socks5", "SOCKS5")),
                     value = cfg.protocol,
-                    onChange = { cfg = cfg.copy(protocol = it).normalized() },
+                    // UDP only needs SOCKS5, so picking HTTP drops it back to both.
+                    onChange = { cfg = cfg.copy(protocol = it, traffic = if (it == "http" && cfg.traffic == "udp") "both" else cfg.traffic).normalized() },
                     full = true,
                 )
+                Column {
+                    NdLabel("Traffic · must match the server")
+                    Spacer(Modifier.height(10.dp))
+                    NdSegmented(
+                        options = listOf(NdSegOption("tcp", "TCP"), NdSegOption("udp", "UDP"), NdSegOption("both", "Both")),
+                        value = cfg.traffic,
+                        onChange = { cfg = cfg.copy(traffic = it).normalized() },
+                        full = true,
+                    )
+                }
                 NdGrid(
                     2,
                     { m -> NdBoxInput("Timeout · s", cfg.timeout, { cfg = cfg.copy(timeout = it) }, numeric = true, modifier = m) },
