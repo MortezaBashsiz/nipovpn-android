@@ -20,6 +20,7 @@ class ConfigYamlTest {
             connectionReuse = false,
             tlsEnable = true,
             aesEnable = false,
+            traffic = "tcp",
             tlsVerifyPeer = false,
             tlsCertFile = "/etc/nipovpn/server.crt",
             tlsKeyFile = "/etc/nipovpn/server.key",
@@ -34,13 +35,14 @@ class ConfigYamlTest {
             bufferSize = "65536",
         )
 
-        // Layout from nipovpn android-v2.1.0 etc/nipovpn/config.yaml.
+        // Layout from nipovpn android-v2.1.0 etc/nipovpn/config.yaml; general.traffic from dev-android-v0.1.31.
         val expected = """
             ---
             general:
               aesEnable: false
               tunnelEnable: true
               tlsEnable: true
+              traffic: tcp
               timeout: 10
             log:
               logLevel: "INFO"
@@ -77,6 +79,30 @@ class ConfigYamlTest {
         """.trimIndent()
 
         assertEquals(expected, configYaml(cfg, logFilePath = "/data/logs/nipovpn.log", threads = 4))
+    }
+
+    // The core refuses to start unless general.traffic is exactly tcp, udp or both.
+    @Test
+    fun trafficFromALinkIsCleanedUpBeforeTheCoreSeesIt() {
+        val yaml = configYaml(NipoConfig(traffic = " UDP ").normalized(), "/l", 4)
+
+        assertTrue(yaml, yaml.contains("\n  traffic: udp\n"))
+    }
+
+    // "both" is the core's own default.
+    @Test
+    fun unknownTrafficMeansBoth() {
+        val yaml = configYaml(NipoConfig(traffic = "quic").normalized(), "/l", 4)
+
+        assertTrue(yaml, yaml.contains("\n  traffic: both\n"))
+    }
+
+    // The core refuses "traffic: udp" with "protocol: http": an HTTP proxy carries only TCP.
+    @Test
+    fun aUdpOnlyProfileRunsAsSocks5() {
+        val yaml = configYaml(NipoConfig(protocol = "http", traffic = "udp").normalized(), "/l", 4)
+
+        assertTrue(yaml, yaml.contains("\n  protocol: socks5\n"))
     }
 
     // A bare "fakeUrls:" is a YAML null, which the 2.1.0 core rejects as "Error in agent.fakeUrls".

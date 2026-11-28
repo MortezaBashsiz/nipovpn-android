@@ -45,6 +45,7 @@ fun loadProfiles(context: Context): List<NipoProfile> {
                 connectionReuse = cfgObj.optBoolean("connectionReuse", defaultCfg.connectionReuse),
                 tlsEnable = cfgObj.optBoolean("tlsEnable", defaultCfg.tlsEnable),
                 aesEnable = cfgObj.optBoolean("aesEnable", defaultCfg.aesEnable),
+                traffic = cfgObj.optString("traffic", defaultCfg.traffic),
                 tlsVerifyPeer = cfgObj.optBoolean("tlsVerifyPeer", defaultCfg.tlsVerifyPeer),
                 tlsCertFile = cfgObj.optString("tlsCertFile", defaultCfg.tlsCertFile),
                 tlsKeyFile = cfgObj.optString("tlsKeyFile", defaultCfg.tlsKeyFile),
@@ -94,6 +95,7 @@ fun saveProfiles(context: Context, profiles: List<NipoProfile>) {
             .put("connectionReuse", cfg.connectionReuse)
             .put("tlsEnable", cfg.tlsEnable)
             .put("aesEnable", cfg.aesEnable)
+            .put("traffic", cfg.traffic)
             .put("tlsVerifyPeer", cfg.tlsVerifyPeer)
             .put("tlsCertFile", cfg.tlsCertFile)
             .put("tlsKeyFile", cfg.tlsKeyFile)

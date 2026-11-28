@@ -4,16 +4,21 @@ import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.content.Intent
-import android.app.Service
-import android.os.IBinder
+import android.content.pm.ServiceInfo
 import android.net.TrafficStats
+import android.net.VpnService
+import android.os.Build
+import android.os.ParcelFileDescriptor
 import android.os.Process as AndroidProcess
 import android.util.Log
 import androidx.core.app.NotificationCompat
+import hev.htproxy.TProxyService
 import java.io.File
 
-class NipoVpnService : Service() {
+// A VpnService in both modes; only VPN mode opens a TUN device.
+class NipoVpnService : VpnService() {
     private var nipoProcess: Process? = null
+    private var tun: ParcelFileDescriptor? = null
     private var logTailThread: Thread? = null
     private var statsThread: Thread? = null
 
@@ -29,11 +34,16 @@ class NipoVpnService : Service() {
 
     override fun onCreate() {
         super.onCreate()
-        startForeground(1, createNotification())
+        goForeground()
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        startForeground(1, createNotification())
+        if (intent?.action == ACTION_STOP) {
+            stopNipoVpn()
+            stopSelf()
+            return START_NOT_STICKY
+        }
+        goForeground()
         startNipoVpn()
         return START_NOT_STICKY
     }
@@ -44,7 +54,12 @@ class NipoVpnService : Service() {
         super.onDestroy()
     }
 
-    override fun onBind(intent: Intent?): IBinder? = null
+    // Another VPN took over, or the user disconnected this one in system settings.
+    override fun onRevoke() {
+        LogManager.append("VPN was revoked by the system; stopping")
+        stopNipoVpn()
+        super.onRevoke()
+    }
 
     // Android 15+ enforces a total execution-time limit for "dataSync" foreground
     // services and calls this when it's hit, expecting us to stop within seconds.
@@ -64,7 +79,7 @@ class NipoVpnService : Service() {
             LogManager.append("NipoVPN is already running")
             return
         }
-        session++
+        val thisSession = ++session
 
         try {
             val profile = loadActiveProfile(this)
@@ -74,6 +89,7 @@ class NipoVpnService : Service() {
                 return
             }
 
+            val mode = loadConnectionMode(filesDir)
             val configFile = generateConfigFile(this, profile.config)
 
             val logDir = File(filesDir, "logs")
@@ -120,7 +136,13 @@ class NipoVpnService : Service() {
                     LogManager.append(msg)
                     logFile.appendText("$msg\n")
                 }
+                onCoreExited(thisSession)
             }.start()
+
+            if (mode == ConnectionMode.VPN) {
+                val port = profile.config.listenPort.trim().toIntOrNull() ?: error("the listen port is not a number")
+                startTunnel(port)
+            }
 
             ConnectionStatus.started()
             startStatsSampler()
@@ -133,7 +155,36 @@ class NipoVpnService : Service() {
             val logFile = File(filesDir, "logs/nipovpn.log")
             logFile.parentFile?.mkdirs()
             logFile.appendText("$msg\n")
+
+            // The core may already be up when the tunnel fails.
+            stopNipoVpn()
+            stopSelf()
         }
+    }
+
+    // Sends every other app's traffic to the core's SOCKS5 listener.
+    private fun startTunnel(socksPort: Int) {
+        val builder = Builder()
+            .setSession("NipoVPN")
+            .setMtu(TUN_MTU)
+            .addAddress(TUN_IPV4, 32)
+            .addAddress(TUN_IPV6, 128)
+            .addRoute("0.0.0.0", 0)
+            .addRoute("::", 0)
+            .addDnsServer(MAPDNS_ADDRESS)
+            // The core is our child process and cannot protect() its socket, so the whole
+            // app stays outside the tunnel; otherwise its link to the server would loop.
+            .addDisallowedApplication(packageName)
+        // A VPN counts as metered unless told to follow the network under it.
+        if (Build.VERSION.SDK_INT >= 29) builder.setMetered(false)
+
+        val fd = builder.establish() ?: error("VPN permission is not granted")
+        tun = fd
+
+        val config = File(filesDir, "tunnel.yaml")
+        config.writeText(tunnelYaml(socksPort))
+        check(TProxyService.TProxyStartService(config.absolutePath, fd.fd)) { "the tunnel did not start" }
+        LogManager.append("VPN tunnel up: all apps -> SOCKS5 127.0.0.1:$socksPort (TCP only)")
     }
 
     // Retrying can't help a refused account, so stop and show why.
@@ -147,11 +198,33 @@ class NipoVpnService : Service() {
         stopSelf()
     }
 
+    // The core died while the tunnel was up: without this the TUN keeps every app offline.
+    @Synchronized
+    private fun onCoreExited(fromSession: Int) {
+        // Stale session, or a stop that already ran.
+        if (fromSession != session || nipoProcess == null) return
+        // Proxy mode leaves the service as it was.
+        if (tun == null) return
+        LogManager.append("The core stopped; closing the VPN")
+        stopNipoVpn()
+        stopSelf()
+    }
+
     @Synchronized
     private fun stopNipoVpn() {
         // Already stopped, e.g. onDestroy right after a refusal.
-        if (nipoProcess == null && logTailThread == null && statsThread == null) return
+        if (nipoProcess == null && logTailThread == null && statsThread == null && tun == null) return
         try {
+            // Tunnel first, so nothing is still reading the TUN device when it closes.
+            tun?.let {
+                try {
+                    TProxyService.TProxyStopService()
+                } finally {
+                    it.close()
+                    tun = null
+                }
+            }
+
             tailRunning = false
             logTailThread?.interrupt()
             logTailThread = null
@@ -293,6 +366,22 @@ class NipoVpnService : Service() {
         )
     }
 
+    // API 34+ wants one declared type per start. A VPN the user has consented to may run as
+    // "systemExempted", which has no time limit; the proxy keeps "dataSync" as before.
+    private fun goForeground() {
+        val notification = createNotification()
+        if (Build.VERSION.SDK_INT < 34) {
+            startForeground(1, notification)
+            return
+        }
+        val vpn = loadConnectionMode(filesDir) == ConnectionMode.VPN && prepare(this) == null
+        startForeground(
+            1,
+            notification,
+            if (vpn) ServiceInfo.FOREGROUND_SERVICE_TYPE_SYSTEM_EXEMPTED else ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC,
+        )
+    }
+
     private fun createNotification(): Notification {
         val channelId = "nipovpn"
 
@@ -310,5 +399,11 @@ class NipoVpnService : Service() {
             .setContentText("VPN is running")
             .setSmallIcon(android.R.drawable.stat_sys_upload_done)
             .build()
+    }
+
+    companion object {
+        // While the tunnel is up the system stays bound to this service, so stopService()
+        // alone would not end it; the activity sends this instead.
+        const val ACTION_STOP = "net.sudoer.nipo.STOP"
     }
 }

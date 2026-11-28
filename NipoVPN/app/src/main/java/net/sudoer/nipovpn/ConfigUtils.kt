@@ -18,6 +18,8 @@ data class NipoConfig(
     val connectionReuse: Boolean = false,
     val tlsEnable: Boolean = true,
     val aesEnable: Boolean = true,
+    // tcp, udp or both: what the core relays. Must match the server.
+    val traffic: String = "both",
     val tlsVerifyPeer: Boolean = false,
     val tlsCertFile: String = "/etc/nipovpn/server.crt",
     val tlsKeyFile: String = "/etc/nipovpn/server.key",
@@ -50,8 +52,11 @@ fun NipoConfig.normalized(): NipoConfig {
         else -> "INFO"
     }
 
+    val normalizedTraffic = traffic.trim().lowercase().takeIf { it in listOf("tcp", "udp", "both") } ?: "both"
+
+    // The core refuses UDP-only over HTTP: an HTTP proxy carries only TCP.
     val normalizedProtocol = when (protocol.trim().lowercase()) {
-        "http" -> "http"
+        "http" -> if (normalizedTraffic == "udp") "socks5" else "http"
         "socks5" -> "socks5"
         else -> "socks5"
     }
@@ -64,6 +69,7 @@ fun NipoConfig.normalized(): NipoConfig {
 
     return copy(
         protocol = normalizedProtocol,
+        traffic = normalizedTraffic,
         methods = normalizedMethods,
         logLevel = normalizedLogLevel,
         tunnelEnable = normalizedTunnelEnable,
@@ -93,6 +99,7 @@ general:
   aesEnable: ${cfg.aesEnable}
   tunnelEnable: ${cfg.tunnelEnable}
   tlsEnable: ${cfg.tlsEnable}
+  traffic: ${cfg.traffic}
   timeout: ${cfg.timeout}
 log:
   logLevel: "${cfg.logLevel}"
@@ -125,7 +132,7 @@ agent:
 }
 
 fun generateConfigFile(context: Context, cfg: NipoConfig): File {
-    val finalCfg = cfg.normalized()
+    val finalCfg = cfg.normalized().forMode(loadConnectionMode(context.filesDir))
     val logDir = File(context.filesDir, "logs")
     logDir.mkdirs()
     val logFile = File(logDir, "nipovpn.log")
@@ -152,6 +159,7 @@ fun exportNipoProfileToLink(profile: NipoProfile): String {
         .put("connectionReuse", cfg.connectionReuse)
         .put("tlsEnable", cfg.tlsEnable)
         .put("aesEnable", cfg.aesEnable)
+        .put("traffic", cfg.traffic)
         .put("tlsVerifyPeer", cfg.tlsVerifyPeer)
         .put("tlsCertFile", cfg.tlsCertFile)
         .put("tlsKeyFile", cfg.tlsKeyFile)
@@ -203,6 +211,7 @@ fun importNipoProfileFromLink(text: String): NipoProfile {
         connectionReuse = cfgObj.optBoolean("connectionReuse", defaultCfg.connectionReuse),
         tlsEnable = cfgObj.optBoolean("tlsEnable", defaultCfg.tlsEnable),
         aesEnable = cfgObj.optBoolean("aesEnable", defaultCfg.aesEnable),
+        traffic = cfgObj.optString("traffic", defaultCfg.traffic),
         tlsVerifyPeer = cfgObj.optBoolean("tlsVerifyPeer", defaultCfg.tlsVerifyPeer),
         tlsCertFile = cfgObj.optString("tlsCertFile", defaultCfg.tlsCertFile),
         tlsKeyFile = cfgObj.optString("tlsKeyFile", defaultCfg.tlsKeyFile),
